@@ -4,6 +4,9 @@ library(tidyverse)
 library(sf)
 library(curl)
 library(here)
+library(FedData)
+
+prj <- 3087
 
 # FLUCCS lookup ----------------------------------------------------------
 
@@ -65,8 +68,6 @@ save(strata, file = here('data', 'strata.RData'), compress = 'xz')
 
 # tbcmp counties ---------------------------------------------------------
 
-prj <- 3087
-
 # # TBCMP project area bounded by 7 county census areas including associated coastal areas tied to local/state jurisdictions
 # curl_download(url = "https://www2.census.gov/geo/tiger/TIGER2025/COUSUB/tl_2025_12_cousub.zip",
 #              destfile = "./data-raw/tl_2025_12_cousub.zip")
@@ -96,6 +97,12 @@ tbcmp_cnt <- fl_counties |>
 save(tbcmp_cnt, file = here('data', 'tbcmp_cnt.RData'), compress = 'xz')
 
 # coastal stratum --------------------------------------------------------
+
+# requires DEM
+# county boundaries
+# VDatum
+
+# salinity ---------------------------------------------------------------
 
 # soils ------------------------------------------------------------------
 
