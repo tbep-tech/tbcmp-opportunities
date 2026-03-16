@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Rscript -e \"renv::init\\(bare = TRUE\\)\")",
+      "Read(//c/Program Files/R//**)",
+      "Read(//c/Program Files/R/**)",
+      "Bash(\"/c/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"renv::init\\(bare = TRUE\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"renv::status\\(\\)\")"
+    ]
+  }
+}
