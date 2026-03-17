@@ -8,6 +8,7 @@ format:
     toc-depth: 3
     code-fold: true
     embed-resources: true
+    css: styles.css
 ---
 
 ## Overview

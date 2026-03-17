@@ -103,14 +103,14 @@ save(tbcmp_cnt, file = here('data', 'tbcmp_cnt.RData'), compress = 'xz')
 
 # coastal stratum --------------------------------------------------------
 
-# --- DEM PREP (run once to generate cudem_3087.tif, then upload to S3) ------
-# Requires access to T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb
+# # DEM PREP (run once to generate cudem_3087.tif, then upload to S3)
+# # Requires access to T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb
 #
 # library(terra)
 # gdb <- "T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb"
 # cudem_raw <- rast(paste0('OpenFileGDB:"', gdb, '":NOAA_CUDEM_tbcmp_extent_m'))
 #
-# # Crop to study area before reading full raster into memory
+# # Crop to study area and aggregate to 10m resolution
 # load(file = here('data', 'tbcmp_cnt.RData'))
 # cudem_raw <- crop(cudem_raw, vect(tbcmp_cnt)) |>
 #   mask(vect(tbcmp_cnt)) |>
@@ -147,12 +147,11 @@ save(
   compress = 'xz'
 )
 
-# original TB
+# load files for comparison
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/coastal.RData')
-# load(file = 'T:/04_STAFF//hmpu-workflow/data/coastal.RData')
-coastal_4326 <- st_transform(coastal, 4326)
-# drop z
-coastal_4326 <- st_zm(coastal_4326)
+load(file = 'T:/04_STAFF//hmpu-workflow/data/coastal.RData')
+coastal_4326 <- st_transform(coastal, 4326) |>
+  st_zm()
 coastal_stratum_4326 <- st_transform(coastal_stratum, 4326)
 
 leaflet() |>
