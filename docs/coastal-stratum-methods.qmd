@@ -1,0 +1,155 @@
+---
+title: "Coastal Stratum Delineation — Methods"
+author: "Tampa Bay Estuary Program"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    embed-resources: true
+---
+
+## Overview
+
+The coastal stratum defines the zone of interest for reservation space in the Tampa Bay Habitat Master Plan as extended for the Tampa Bay Coastal Master Plan (TBCMP). It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 — the elevation range most relevant to tidal and near-tidal coastal habitats including mangroves, salt marshes, salt barrens, and coastal uplands.
+
+The delineation follows three main steps:
+
+1. Load a topobathymetric DEM covering the study area
+2. Derive a spatially varying MLLW offset surface using the NOAA VDatum API
+3. Mask the DEM to cells within the stratum bounds and convert to a polygon
+
+---
+
+## Study Area
+
+The study area covers seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.
+
+---
+
+## Digital Elevation Model
+
+### Source
+
+The DEM used is the **NOAA Continuously Updated DEM (CUDEM)**, accessed from the TBCMP ESRI FileGeodatabase:
+
+```
+T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb :: NOAA_CUDEM_tbcmp_extent_m
+```
+
+CUDEM is a topobathymetric product that seamlessly integrates LiDAR-derived land elevation with bathymetric soundings in nearshore areas. This makes it suitable for delineating the intertidal zone. The vertical datum is NAVD88, units are meters.
+
+### Processing
+
+The raw CUDEM layer is 2 m resolution and covers the full TBCMP seven-county extent (~134,000 × 248,000 cells). To make it tractable for analysis:
+
+1. **Crop and mask** to the seven-county study area boundary
+2. **Aggregate** by a factor of 5 (mean) to produce a 10 m resolution raster
+
+The processed raster is saved as a Cloud Optimized GeoTIFF (COG) and hosted on Amazon S3 for reproducible access without requiring the source GDB:
+
+```
+https://tbcmp.s3.amazonaws.com/cudem_3087.tif
+```
+
+The COG format supports range requests, so only the cells needed for a given operation are transferred across the network.
+
+### Vertical range
+
+The study-area-masked DEM has an elevation range of approximately **−31 m to +116 m NAVD88**, confirming that bathymetric values (negative) are present and the intertidal zone is fully represented.
+
+---
+
+## Tidal Datum Offset Surface
+
+### Rationale
+
+The lower bound of the coastal stratum is MLLW, not a fixed NAVD88 elevation. MLLW varies spatially due to differences in tidal range, bay geometry, and freshwater influence. Across the seven-county study area, MLLW ranges from roughly −0.55 m to −0.65 m NAVD88. Using a spatially varying surface rather than a single constant ensures the stratum boundary is physically meaningful everywhere.
+
+### VDatum API
+
+Tidal datum offsets are obtained from the **NOAA VDatum web API**, which converts between vertical datums at arbitrary geographic locations. For each sample point, the API converts 0 m MLLW to its equivalent NAVD88 elevation, yielding the local MLLW offset.
+
+API endpoint:
+
+```
+https://vdatum.noaa.gov/vdatumweb/api/convert
+```
+
+Key parameters:
+
+| Parameter | Value |
+|---|---|
+| Source vertical datum | MLLW |
+| Target vertical datum | NAVD88 |
+| Horizontal frame | NAD83_2011 |
+| Geoid | GEOID18 |
+| Source value | 0 m |
+
+Points outside VDatum coverage (e.g., far offshore or inland) return NOAA's sentinel value (−999999) and are treated as `NA`.
+
+### Sample Grid
+
+A regular grid of sample points at ~5 km spacing (0.05° in geographic coordinates) is generated over the study area bounding box and clipped to the county boundaries. Requests are sent at ~2 per second to stay within NOAA's rate limits.
+
+### Interpolation
+
+Valid offset values are interpolated to a continuous surface using a **thin-plate spline (TPS)** from the `fields` package. TPS is appropriate here because:
+
+- Tidal datum variation is smooth and gradual
+- It exactly interpolates at observed points
+- It extrapolates smoothly to unsampled areas within the study extent
+
+The spline is predicted onto a 0.005° (~500 m) grid in EPSG:4326, then projected to EPSG:3087 and resampled to exactly match the DEM grid using bilinear interpolation.
+
+---
+
+## Coastal Stratum Mask
+
+The stratum is defined as all DEM cells satisfying:
+
+$$\text{MLLW}_{xy} \leq \text{elevation}_{xy} \leq 1.524 \text{ m NAVD88}$$
+
+where $\text{MLLW}_{xy}$ is the spatially varying MLLW surface and 1.524 m is the 5 ft NAVD88 upper bound. Cells outside this range are set to `NA`.
+
+The raster mask is then vectorized (dissolved) to a single polygon using `terra::as.polygons()` and validated with `sf::st_make_valid()`.
+
+### Output attributes
+
+| Field | Value |
+|---|---|
+| `stratum` | `"coastal"` |
+| `lower_datum` | `"MLLW (spatially varying, NAVD88)"` |
+| `upper_elev_ft` | `5` |
+| `upper_elev_m` | `1.524` |
+| `crs` | `"EPSG:3087"` |
+
+The final polygon is saved to `data/coastal_stratum.RData`.
+
+---
+
+## Key Functions
+
+All steps are implemented in `R/funcs.R`:
+
+| Function | Purpose |
+|---|---|
+| `query_vdatum()` | Single-point VDatum API call |
+| `build_vdatum_grid()` | Generate clipped sample grid |
+| `batch_query_vdatum()` | Loop over grid with rate limiting |
+| `build_mllw_surface()` | TPS interpolation + resample to DEM |
+| `make_coastal_stratum()` | Mask DEM and polygonize |
+
+---
+
+## Dependencies
+
+| Package | Purpose |
+|---|---|
+| `terra` | Raster processing and vectorization |
+| `sf` | Vector operations and CRS management |
+| `httr2` | VDatum API requests |
+| `fields` | Thin-plate spline interpolation |
+| `tidyr` | Dropping NA rows before TPS fitting |
+| `dplyr` | Attribute table construction |

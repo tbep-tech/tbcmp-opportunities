@@ -4,7 +4,12 @@ library(tidyverse)
 library(sf)
 library(curl)
 library(here)
-library(FedData)
+library(terra)
+library(httr2)
+library(fields)
+library(leaflet)
+
+source(here('R/funcs.R'))
 
 prj <- 3087
 
@@ -98,9 +103,76 @@ save(tbcmp_cnt, file = here('data', 'tbcmp_cnt.RData'), compress = 'xz')
 
 # coastal stratum --------------------------------------------------------
 
-# requires DEM
-# county boundaries
-# VDatum
+# --- DEM PREP (run once to generate cudem_3087.tif, then upload to S3) ------
+# Requires access to T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb
+#
+# library(terra)
+# gdb <- "T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb"
+# cudem_raw <- rast(paste0('OpenFileGDB:"', gdb, '":NOAA_CUDEM_tbcmp_extent_m'))
+#
+# # Crop to study area before reading full raster into memory
+# load(file = here('data', 'tbcmp_cnt.RData'))
+# cudem_raw <- crop(cudem_raw, vect(tbcmp_cnt)) |>
+#   mask(vect(tbcmp_cnt)) |>
+#   aggregate(fact = 5, fun = "mean")  # 2m -> 10m
+#
+# # Save locally then upload to S3 for future use
+# writeRaster(cudem_raw, here("data/cudem_3087.tif"), filetype = "COG", overwrite = TRUE)
+# # aws.s3::put_object(file = here("data/cudem_3087.tif"),
+# #                    object = "cudem_3087.tif", bucket = "tbcmp")
+
+# Load county boundaries
+load(file = here('data', 'tbcmp_cnt.RData'))
+
+# Load CUDEM topobathy (10m, EPSG:3087, NAVD88 meters) from S3
+cudem <- rast("/vsicurl/https://tbcmp.s3.amazonaws.com/cudem_3087.tif")
+
+# Prepare county boundaries
+tbcmp_cnt_4326 <- st_transform(tbcmp_cnt, 4326)
+bbox_4326 <- st_bbox(tbcmp_cnt_4326)
+
+# Query VDatum API for MLLW -> NAVD88 offsets on a ~5 km sample grid
+grid_pts <- build_vdatum_grid(bbox_4326, tbcmp_cnt_4326)
+grid_pts <- batch_query_vdatum(grid_pts)
+
+# Interpolate spatially varying MLLW surface aligned to DEM
+mllw_surface <- build_mllw_surface(grid_pts, bbox_4326, tbcmp_cnt, cudem)
+
+# Delineate coastal stratum (MLLW to 5 ft NAVD88)
+coastal_stratum <- make_coastal_stratum(cudem, mllw_surface)
+
+save(
+  coastal_stratum,
+  file = here('data', 'coastal_stratum.RData'),
+  compress = 'xz'
+)
+
+# original TB
+load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/coastal.RData')
+# load(file = 'T:/04_STAFF//hmpu-workflow/data/coastal.RData')
+coastal_4326 <- st_transform(coastal, 4326)
+# drop z
+coastal_4326 <- st_zm(coastal_4326)
+coastal_stratum_4326 <- st_transform(coastal_stratum, 4326)
+
+leaflet() |>
+  addTiles() |>
+  addPolygons(
+    data = coastal_4326,
+    color = "blue",
+    fillOpacity = 0.5,
+    group = "Original TB Stratum"
+  ) |>
+  addPolygons(
+    data = coastal_stratum_4326,
+    color = "red",
+    fillOpacity = 0.5,
+    group = "Interpolated Stratum"
+  ) |>
+  addLayersControl(
+    overlayGroups = c("Original TB Stratum", "Interpolated Stratum"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
 
 # salinity ---------------------------------------------------------------
 
