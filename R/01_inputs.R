@@ -149,9 +149,9 @@ save(
 
 # load files for comparison
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/coastal.RData')
-load(file = 'T:/04_STAFF//hmpu-workflow/data/coastal.RData')
 coastal_4326 <- st_transform(coastal, 4326) |>
   st_zm()
+load(file = here('data', 'coastal_stratum.RData'))
 coastal_stratum_4326 <- st_transform(coastal_stratum, 4326)
 
 leaflet() |>

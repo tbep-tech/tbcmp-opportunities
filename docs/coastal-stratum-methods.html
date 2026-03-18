@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Tampa Bay Estuary Program">
-<meta name="dcterms.date" content="2026-03-17">
+<meta name="dcterms.date" content="2026-03-18">
 
 <title>Coastal Stratum Delineation — Methods</title>
 <style>
@@ -2357,7 +2357,6 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
   <ul class="collapse">
   <li><a href="#source" id="toc-source" class="nav-link" data-scroll-target="#source">Source</a></li>
   <li><a href="#processing" id="toc-processing" class="nav-link" data-scroll-target="#processing">Processing</a></li>
-  <li><a href="#vertical-range" id="toc-vertical-range" class="nav-link" data-scroll-target="#vertical-range">Vertical range</a></li>
   </ul></li>
   <li><a href="#tidal-datum-offset-surface" id="toc-tidal-datum-offset-surface" class="nav-link" data-scroll-target="#tidal-datum-offset-surface">Tidal Datum Offset Surface</a>
   <ul class="collapse">
@@ -2371,7 +2370,6 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
   <li><a href="#output-attributes" id="toc-output-attributes" class="nav-link" data-scroll-target="#output-attributes">Output attributes</a></li>
   </ul></li>
   <li><a href="#key-functions" id="toc-key-functions" class="nav-link" data-scroll-target="#key-functions">Key Functions</a></li>
-  <li><a href="#dependencies" id="toc-dependencies" class="nav-link" data-scroll-target="#dependencies">Dependencies</a></li>
   </ul>
 </nav>
 </div>
@@ -2396,7 +2394,7 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">March 17, 2026</p>
+      <p class="date">March 18, 2026</p>
     </div>
   </div>
   
@@ -2410,19 +2408,17 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The coastal stratum defines the zone of interest for reservation space in the Tampa Bay Habitat Master Plan as extended for the Tampa Bay Coastal Master Plan (TBCMP). It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 — the elevation range most relevant to tidal and near-tidal coastal habitats including mangroves, salt marshes, salt barrens, and coastal uplands.</p>
+<p>The coastal stratum defines the zone of interest for reservation space in the Tampa Bay Habitat Master Plan developed for the Tampa Bay Coastal Master Plan (TBCMP). It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 most likely to be impacted by sea level rise.</p>
 <p>The delineation follows three main steps:</p>
 <ol type="1">
 <li>Load a topobathymetric DEM covering the study area</li>
 <li>Derive a spatially varying MLLW offset surface using the NOAA VDatum API</li>
 <li>Mask the DEM to cells within the stratum bounds and convert to a polygon</li>
 </ol>
-<hr>
 </section>
 <section id="study-area" class="level2">
 <h2 class="anchored" data-anchor-id="study-area">Study Area</h2>
 <p>The study area covers seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.</p>
-<hr>
 </section>
 <section id="digital-elevation-model" class="level2">
 <h2 class="anchored" data-anchor-id="digital-elevation-model">Digital Elevation Model</h2>
@@ -2441,23 +2437,17 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
 </ol>
 <p>The processed raster is saved as a Cloud Optimized GeoTIFF (COG) and hosted on Amazon S3 for reproducible access without requiring the source GDB:</p>
 <pre><code>https://tbcmp.s3.amazonaws.com/cudem_3087.tif</code></pre>
-<p>The COG format supports range requests, so only the cells needed for a given operation are transferred across the network.</p>
-</section>
-<section id="vertical-range" class="level3">
-<h3 class="anchored" data-anchor-id="vertical-range">Vertical range</h3>
-<p>The study-area-masked DEM has an elevation range of approximately <strong>−31 m to +116 m NAVD88</strong>, confirming that bathymetric values (negative) are present and the intertidal zone is fully represented.</p>
-<hr>
 </section>
 </section>
 <section id="tidal-datum-offset-surface" class="level2">
 <h2 class="anchored" data-anchor-id="tidal-datum-offset-surface">Tidal Datum Offset Surface</h2>
 <section id="rationale" class="level3">
 <h3 class="anchored" data-anchor-id="rationale">Rationale</h3>
-<p>The lower bound of the coastal stratum is MLLW, not a fixed NAVD88 elevation. MLLW varies spatially due to differences in tidal range, bay geometry, and freshwater influence. Across the seven-county study area, MLLW ranges from roughly −0.55 m to −0.65 m NAVD88. Using a spatially varying surface rather than a single constant ensures the stratum boundary is physically meaningful everywhere.</p>
+<p>The lower bound of the coastal stratum is MLLW, not a fixed NAVD88 elevation. MLLW varies spatially due to differences in tidal range, bay geometry, and freshwater influence. Across the seven-county study area, MLLW ranges from roughly 0.12 m to −0.75 m NAVD88. Using a spatially varying surface rather than a single constant ensures the stratum boundary is physically meaningful everywhere.</p>
 </section>
 <section id="vdatum-api" class="level3">
 <h3 class="anchored" data-anchor-id="vdatum-api">VDatum API</h3>
-<p>Tidal datum offsets are obtained from the <strong>NOAA VDatum web API</strong>, which converts between vertical datums at arbitrary geographic locations. For each sample point, the API converts 0 m MLLW to its equivalent NAVD88 elevation, yielding the local MLLW offset.</p>
+<p>Tidal datum offsets are obtained from the <strong>NOAA VDatum web API</strong>, which converts between vertical datums at arbitrary geographic locations. For each sample point, the API converts 0 m MLLW to its equivalent NAVD88 elevation, providing the local MLLW offset.</p>
 <p>API endpoint:</p>
 <pre><code>https://vdatum.noaa.gov/vdatumweb/api/convert</code></pre>
 <p>Key parameters:</p>
@@ -2495,7 +2485,7 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
 </section>
 <section id="sample-grid" class="level3">
 <h3 class="anchored" data-anchor-id="sample-grid">Sample Grid</h3>
-<p>A regular grid of sample points at ~5 km spacing (0.05° in geographic coordinates) is generated over the study area bounding box and clipped to the county boundaries. Requests are sent at ~2 per second to stay within NOAA’s rate limits.</p>
+<p>A regular grid of sample points at ~5 km spacing (0.05° in geographic coordinates) is generated over the study area bounding box and clipped to the county boundaries. Requests are sent at ~2 per second to stay within NOAA’s API rate limits.</p>
 </section>
 <section id="interpolation" class="level3">
 <h3 class="anchored" data-anchor-id="interpolation">Interpolation</h3>
@@ -2506,7 +2496,6 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
 <li>It extrapolates smoothly to unsampled areas within the study extent</li>
 </ul>
 <p>The spline is predicted onto a 0.005° (~500 m) grid in EPSG:4326, then projected to EPSG:3087 and resampled to exactly match the DEM grid using bilinear interpolation.</p>
-<hr>
 </section>
 </section>
 <section id="coastal-stratum-mask" class="level2">
@@ -2548,7 +2537,6 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
 </tbody>
 </table>
 <p>The final polygon is saved to <code>data/coastal_stratum.RData</code>.</p>
-<hr>
 </section>
 </section>
 <section id="key-functions" class="level2">
@@ -2584,44 +2572,7 @@ body{font-family: 'Roboto';font-weight: 400;font-size: 18px;color: #636363;}h1,h
 </tr>
 </tbody>
 </table>
-<hr>
-</section>
-<section id="dependencies" class="level2">
-<h2 class="anchored" data-anchor-id="dependencies">Dependencies</h2>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Package</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>terra</code></td>
-<td>Raster processing and vectorization</td>
-</tr>
-<tr class="even">
-<td><code>sf</code></td>
-<td>Vector operations and CRS management</td>
-</tr>
-<tr class="odd">
-<td><code>httr2</code></td>
-<td>VDatum API requests</td>
-</tr>
-<tr class="even">
-<td><code>fields</code></td>
-<td>Thin-plate spline interpolation</td>
-</tr>
-<tr class="odd">
-<td><code>tidyr</code></td>
-<td>Dropping NA rows before TPS fitting</td>
-</tr>
-<tr class="even">
-<td><code>dplyr</code></td>
-<td>Attribute table construction</td>
-</tr>
-</tbody>
-</table>
+<p>All functions are executed in <code>R/01_inputs.R</code> to produce the final <code>coastal_stratum</code> object.</p>
 </section>
 
 </main>

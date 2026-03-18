@@ -14,8 +14,8 @@ query_vdatum <- function(lon, lat, unit = "m") {
     {
       httr2::request("https://vdatum.noaa.gov/vdatumweb/api/convert") |>
         httr2::req_url_query(
-          lon = round(lon, 6),
-          lat = round(lat, 6),
+          s_x = round(lon, 6),
+          s_y = round(lat, 6),
           s_h_frame = "NAD83_2011",
           s_v_frame = "MLLW",
           s_v_unit = unit,
