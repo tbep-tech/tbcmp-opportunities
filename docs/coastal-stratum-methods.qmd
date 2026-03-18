@@ -39,7 +39,7 @@ CUDEM is a topobathymetric product that seamlessly integrates LiDAR-derived land
 
 ### Processing
 
-The raw CUDEM layer is 2 m resolution and covers the full TBCMP seven-county extent (~134,000 × 248,000 cells). To make it tractable for analysis:
+The raw CUDEM layer is 2 m resolution and covers the full TBCMP seven-county extent. To make it tractable for analysis:
 
 1. **Crop and mask** to the seven-county study area boundary
 2. **Aggregate** by a factor of 5 (mean) to produce a 10 m resolution raster
