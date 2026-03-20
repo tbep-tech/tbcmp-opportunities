@@ -8,6 +8,7 @@ library(terra)
 library(httr2)
 library(fields)
 library(leaflet)
+library(soilDB)
 
 source(here('R/funcs.R'))
 
@@ -176,6 +177,166 @@ leaflet() |>
 # salinity ---------------------------------------------------------------
 
 # soils ------------------------------------------------------------------
+
+# Retrieve SSURGO soils data for the 7-county TBCMP area via NRCS Soil Data
+# Access (SDA) and classify map units as hydric, mesic, or xeric, matching
+# the methods in Ries and Scheda (2014).
+#
+# Classification:
+#   gridcode 100 = Xeric  (well-drained upland soils)
+#   gridcode 200 = Mesic  (moderately drained transitional soils)
+#   gridcode 300 = Hydric (hydric-rated or poorly drained soils)
+#
+# Queries are issued county by county to stay within SDA size limits.
+# Component attributes are chunked in groups of 500 mukeys.
+
+load(file = here('data', 'tbcmp_cnt.RData'))
+
+# --- 1. Fetch SSURGO map unit polygons for each county -------------------
+# Each county is subdivided into 0.1-degree (~10 km) tiles to avoid the
+# 90-second SDA timeout that affects larger county geometries.
+
+mupolygon_list <- vector('list', nrow(tbcmp_cnt))
+
+for (i in seq_len(nrow(tbcmp_cnt))) {
+  cat('Fetching soil polygons for', tbcmp_cnt$county[i], '...\n')
+  mupolygon_list[[i]] <- fetch_soils_tiled(tbcmp_cnt[i, ])
+}
+
+# Polygon fragments from tile-boundary splits are left as-is here;
+# they are reconciled correctly when dissolving by gridcode in step 4.
+mupolygon <- bind_rows(mupolygon_list)
+
+# --- 2. Query dominant component attributes (hydricrating, drainagecl) ---
+
+mukeys <- unique(mupolygon$mukey)
+
+# SDA IN clause limit ~1 000 items; chunk to 500 for safety
+mukey_chunks <- split(mukeys, ceiling(seq_along(mukeys) / 500))
+
+comp_data <- lapply(mukey_chunks, function(keys) {
+  SDA_query(sprintf(
+    "SELECT mu.mukey, c.hydricrating, c.drainagecl, c.comppct_r
+       FROM mapunit mu
+       INNER JOIN component c ON mu.mukey = c.mukey
+      WHERE mu.mukey IN (%s)
+        AND c.majcompflag = 'Yes'",
+    paste(keys, collapse = ',')
+  ))
+}) |>
+  bind_rows()
+
+# --- 3. Classify dominant component per map unit -------------------------
+# Primary split: xeric vs mesic/hydric.
+# Mesic/hydric = formally hydric-rated OR poorly/somewhat poorly drained.
+# Xeric = well-drained and not hydric-rated.
+# The 200/300 subdivision (non-coastal vs coastal) is applied in step 4
+# using coastal_stratum, matching the original Ries & Scheda (2014) approach.
+
+comp_classified <- comp_data |>
+  group_by(mukey) |>
+  slice_max(comppct_r, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(
+    mesic_hydric = hydricrating == 'Yes' |
+      drainagecl %in% c('Somewhat poorly drained', 'Poorly drained', 'Very poorly drained')
+  )
+
+# --- 4. Join attributes, subdivide by coastal zone, dissolve -------------
+
+tbcmp_union <- st_union(tbcmp_cnt)
+
+load(file = here('data', 'coastal_stratum.RData'))
+coastal_union <- st_union(coastal_stratum) |> st_make_valid()
+
+# Polygons classified and clipped to study area
+mupolygon_cls <- mupolygon |>
+  left_join(
+    comp_classified |> select(mukey, mesic_hydric),
+    by = 'mukey'
+  ) |>
+  filter(!is.na(mesic_hydric)) |>
+  st_transform(prj) |>
+  st_make_valid() |>
+  st_intersection(tbcmp_union)
+
+# Xeric soils (gridcode 100)
+soils_xeric <- mupolygon_cls |>
+  filter(!mesic_hydric) |>
+  summarise() |>
+  mutate(gridcode = 100L, Descrip = 'Xeric')
+
+# Mesic/hydric within the coastal stratum (gridcode 300)
+soils_300 <- mupolygon_cls |>
+  filter(mesic_hydric) |>
+  st_intersection(coastal_union) |>
+  summarise() |>
+  mutate(gridcode = 300L, Descrip = 'Mesic/Hydric (Estuarine)')
+
+# Mesic/hydric outside the coastal stratum (gridcode 200)
+soils_200 <- mupolygon_cls |>
+  filter(mesic_hydric) |>
+  st_difference(coastal_union) |>
+  summarise() |>
+  mutate(gridcode = 200L, Descrip = 'Mesic/Hydric')
+
+soils <- bind_rows(soils_xeric, soils_200, soils_300) |>
+  arrange(gridcode)
+
+save(soils, file = here('data', 'soils.RData'), compress = 'xz')
+
+# load original TB-only soils for comparison
+
+load(file = here('data', 'soils.RData'))
+soils_4326 <- st_transform(soils, 4326)
+
+soils_tb <- get(load(
+  'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/soils.RData'
+)) |>
+  st_transform(4326)
+soils_4326 <- soils_4326 |> filter(gridcode == 100)
+soils_tb <- soils_tb |> filter(gridcode == 100)
+
+soil_pal <- colorFactor(
+  palette = c('#d4a84b', '#6baed6', '#74c476'),
+  levels = c(100, 200, 300)
+)
+
+leaflet() |>
+  addTiles() |>
+  addPolygons(
+    data = soils_tb,
+    color = ~ soil_pal(gridcode),
+    fillColor = ~ soil_pal(gridcode),
+    fillOpacity = 0.5,
+    weight = 0.5,
+    label = ~ paste0('TB: ', Descrip),
+    group = 'TB Soils (original)'
+  ) |>
+  addPolygons(
+    data = soils_4326,
+    color = ~ soil_pal(gridcode),
+    fillColor = ~ soil_pal(gridcode),
+    fillOpacity = 0.5,
+    weight = 0.5,
+    label = ~ paste0('TBCMP: ', Descrip),
+    group = 'TBCMP Soils (new)'
+  ) |>
+  addLegend(
+    position = 'bottomright',
+    pal = soil_pal,
+    values = c(100, 200, 300),
+    labFormat = labelFormat(
+      transform = function(x) {
+        c('Xeric', 'Mesic', 'Hydric')[match(x, c(100, 200, 300))]
+      }
+    ),
+    title = 'Soil Type'
+  ) |>
+  addLayersControl(
+    overlayGroups = c('TB Soils (original)', 'TBCMP Soils (new)'),
+    options = layersControlOptions(collapsed = FALSE)
+  )
 
 # FNAI -------------------------------------------------------------------
 

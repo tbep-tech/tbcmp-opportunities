@@ -6,7 +6,9 @@
       "Read(//c/Program Files/R/**)",
       "Bash(\"/c/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"renv::init\\(bare = TRUE\\)\")",
       "Bash(\"/c/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"renv::status\\(\\)\")",
-      "WebFetch(domain:tidesandcurrents.noaa.gov)"
+      "WebFetch(domain:tidesandcurrents.noaa.gov)",
+      "Read(//c/proj/hmpu-workflow/**)",
+      "Bash(Rscript -e \"load\\(''data/soils.RData''\\); cat\\(''Class:'', class\\(soils\\), ''\\\\n''\\); cat\\(''Names:'', paste\\(names\\(soils\\), collapse='', ''\\), ''\\\\n''\\); cat\\(''Rows:'', nrow\\(soils\\), ''\\\\n''\\); cat\\(''Unique gridcodes:'', paste\\(sort\\(unique\\(soils$gridcode\\)\\), collapse='', ''\\), ''\\\\n''\\); cat\\(''CRS:'', st_crs\\(soils\\)$epsg, ''\\\\n''\\)\")"
     ]
   }
 }

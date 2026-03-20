@@ -184,3 +184,51 @@ make_coastal_stratum <- function(dem, mllw_surface, upper_bound_m = 5 * 0.3048) 
       crs = "EPSG:3087"
     )
 }
+
+#' Fetch SSURGO map unit polygons using tiled SDA queries
+#'
+#' Subdivides the input geometry into a regular grid of tiles and issues one
+#' \code{SDA_spatialQuery()} per tile, then binds all results. This avoids the
+#' 90-second SDA timeout that occurs when querying large county geometries in
+#' a single request.
+#'
+#' @param geom An \code{sf} polygon in any CRS; internally transformed to EPSG:4326.
+#' @param tile_size Numeric. Tile size in decimal degrees. Default \code{0.1} (~10 km).
+#' @param pause Numeric. Seconds to pause between tile requests. Default \code{0.5}.
+#'
+#' @return An \code{sf} object with columns \code{mukey}, \code{area_ac}, and geometry.
+#'   Rows are not deduplicated — polygons spanning tile boundaries appear as multiple
+#'   fragments, which are reconciled when dissolving by soil type downstream.
+
+fetch_soils_tiled <- function(geom, tile_size = 0.1, pause = 0.5) {
+
+  geom_4326 <- sf::st_transform(geom, 4326)
+
+  tiles <- sf::st_make_grid(geom_4326, cellsize = tile_size) |>
+    sf::st_as_sf() |>
+    sf::st_filter(geom_4326)
+
+  cat(sprintf('  Querying %d tiles (%.2f deg each)...\n', nrow(tiles), tile_size))
+
+  results <- vector('list', nrow(tiles))
+
+  for (j in seq_len(nrow(tiles))) {
+    results[[j]] <- tryCatch(
+      soilDB::SDA_spatialQuery(
+        geom             = tiles[j, ],
+        what             = 'mupolygon',
+        db               = 'SSURGO',
+        geomIntersection = TRUE
+      ),
+      error = function(e) {
+        message(sprintf('  Tile %d/%d failed: %s', j, nrow(tiles), conditionMessage(e)))
+        NULL
+      }
+    )
+
+    Sys.sleep(pause)
+  }
+
+  dplyr::bind_rows(Filter(Negate(is.null), results))
+
+}
