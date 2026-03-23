@@ -185,6 +185,167 @@ make_coastal_stratum <- function(dem, mllw_surface, upper_bound_m = 5 * 0.3048) 
     )
 }
 
+#' Build a classified soils layer for a multi-county study area
+#'
+#' Fetches SSURGO map unit polygons county by county using
+#' \code{fetch_soils_tiled()}, classifies each unit as Xeric, Mesic, or Hydric
+#' following Ries and Scheda (2014) via \code{classify_soils_muname()}, clips
+#' to the study area boundary, and dissolves by gridcode.
+#'
+#' @param counties An \code{sf} polygon with one row per county. Each row is
+#'   passed individually to \code{fetch_soils_tiled()}. If a \code{county}
+#'   column is present its values are used in progress messages.
+#' @param crs Integer EPSG code for the output CRS. Default \code{3087}.
+#' @param verbose Logical. If \code{TRUE} (default), prints per-county fetch
+#'   progress and a summary of unclassified map units after classification.
+#'   Water bodies will always appear in the unclassified list and can be
+#'   ignored; any other entries may need adding to the series lists inside
+#'   \code{classify_soils_muname()}.
+#'
+#' @return An \code{sf} object in \code{crs} with columns \code{gridcode}
+#'   (100L = Xeric, 200L = Mesic, 300L = Hydric) and \code{Descrip}, dissolved
+#'   and clipped to the union of \code{counties}.
+
+build_soils_layer <- function(counties, crs = 3087L, verbose = TRUE) {
+
+  # --- step 1: fetch polygons county by county -----------------------------
+
+  mupolygon_list <- vector('list', nrow(counties))
+
+  for (i in seq_len(nrow(counties))) {
+    if (verbose) {
+      label <- if ('county' %in% names(counties)) counties$county[i] else i
+      cat('Fetching soil polygons for', label, '...\n')
+    }
+    mupolygon_list[[i]] <- fetch_soils_tiled(counties[i, ])
+  }
+
+  mupolygon <- dplyr::bind_rows(mupolygon_list)
+
+  # --- steps 2-3: query munames and classify -------------------------------
+
+  comp_classified <- classify_soils_muname(unique(mupolygon$mukey))
+
+  if (verbose) {
+    n_unclass <- sum(is.na(comp_classified$gridcode))
+    cat('Unclassified mukeys:', n_unclass, '\n')
+    if (n_unclass > 0) {
+      comp_classified |>
+        dplyr::filter(is.na(gridcode)) |>
+        dplyr::count(muname, sort = TRUE) |>
+        print()
+    }
+  }
+
+  # --- step 4: join, clip to study area, dissolve --------------------------
+
+  area_union <- sf::st_union(counties)
+
+  mupolygon |>
+    dplyr::left_join(
+      comp_classified |> dplyr::select(mukey, gridcode, Descrip),
+      by = 'mukey'
+    ) |>
+    dplyr::filter(!is.na(gridcode)) |>
+    sf::st_transform(crs) |>
+    sf::st_make_valid() |>
+    sf::st_intersection(area_union) |>
+    dplyr::group_by(gridcode, Descrip) |>
+    dplyr::summarise(.groups = 'drop') |>
+    dplyr::arrange(gridcode)
+}
+
+#' Classify SSURGO map units as Xeric, Mesic, or Hydric
+#'
+#' Queries map unit names from NRCS Soil Data Access (SDA) for a vector of
+#' mukeys and classifies each unit using soil series name matching, following
+#' the methodology of Ries and Scheda (2014). Xeric units are checked first so
+#' that complex map unit names (e.g. "Tavares-Myakka complex") resolve to the
+#' leading series. Hydric qualifiers in the map unit name (muck, depressional,
+#' mostly wetland) override series-level matches to handle series like Pompano
+#' and Basinger that appear in both Mesic and Hydric categories.
+#'
+#' @param mukeys Character or integer vector of SSURGO map unit keys.
+#' @param chunk_size Integer. Number of mukeys per SDA query. Default \code{500}.
+#'
+#' @return A \code{data.frame} with columns \code{mukey}, \code{muname},
+#'   \code{gridcode} (100L = Xeric, 200L = Mesic, 300L = Hydric, \code{NA} =
+#'   unclassified), and \code{Descrip}. Water bodies and unrecognised map units
+#'   will have \code{NA} gridcode and can be dropped downstream.
+
+classify_soils_muname <- function(mukeys, chunk_size = 500L) {
+
+  # --- series lookup lists (Ries & Scheda 2014) ----------------------------
+
+  series_hydric <- c(
+    'Sellers', 'Zephyr', 'Lacoochee', 'Okeelanta', 'Terra Ceia',
+    'Weekiwachee', 'Samsula', 'Homosassa', 'Tobiska', 'Bessie', 'Delray',
+    'Floridana', 'Kesson', 'Wulfert', 'Manatee', 'Okeechobee', 'Palmetto',
+    'Broward', 'Matlacha', 'Haplaquents', 'Hydraquents', 'Holopaw', 'Nittaw',
+    'Copeland', 'Waccasassa'
+  )
+
+  series_mesic <- c(
+    'Wauchula', 'Pomona', 'Pineda', 'Felda', 'Myakka', 'Ora', 'Vero',
+    'Immokalee', 'Smyrna', 'Basinger', 'Anclote', 'Pompano', 'EauGallie',
+    'Eau Gallie', 'Chobee', 'Paisley', 'Arredondo', 'Cassia', 'Blichton',
+    'Flemington', 'Placid', 'Aripeka', 'Wabasso', 'Ona', 'Pinellas',
+    'St. Johns', 'Winder', 'Bradenton', 'Canova', 'Malabar', 'Seffner',
+    'Parkwood', 'Braden', 'Eaton', 'Farmton', 'Kanapaha', 'Lynne',
+    'Nobleton', 'Oldsmar', 'Waveland', 'Brynwood', 'Jumper', 'Lutterloh',
+    'Mabel', 'Masaryk', 'Pople', 'Punta', 'Tarrytown', 'Wekiva'
+  )
+
+  series_xeric <- c(
+    'Tavares', 'Sparr', 'Adamsville', 'Astatula', 'Chandler', 'Electra',
+    'Paola', 'Narcoossee', 'Lake', 'Pomello', 'Kendrick', 'Lochloosa',
+    'Newnan', 'Gainesville', 'Micanopy', 'Millhopper', 'Orlando', 'Zofo',
+    'Zolfo', 'Candler', 'Nobleston', 'Beaches', 'Pits', 'Urban land',
+    'Quartzipsamments', 'Arents', 'Dumps', 'Canaveral', 'Orsino',
+    'Palm Beach', 'St. Augustine', 'Apopka', 'Archbold', 'Duette',
+    'Fort Meade', 'Gypsum land', 'Jonesville', 'Neilhurst', 'Udorthents',
+    'Slickens', 'Citronelle', 'Florahome', 'Ft. Green', 'Jonathan',
+    'Redlevel', 'Shadeville', 'St. Lucie', 'Sumterville', 'Williston'
+  )
+
+  pat_hydric <- paste0('\\b(', paste(series_hydric, collapse = '|'), ')\\b')
+  pat_mesic  <- paste0('\\b(', paste(series_mesic,  collapse = '|'), ')\\b')
+  pat_xeric  <- paste0('\\b(', paste(series_xeric,  collapse = '|'), ')\\b')
+
+  # --- query munames from SDA in chunks ------------------------------------
+
+  chunks <- split(mukeys, ceiling(seq_along(mukeys) / chunk_size))
+
+  comp_data <- lapply(chunks, function(keys) {
+    soilDB::SDA_query(sprintf(
+      "SELECT mu.mukey, mu.muname
+         FROM mapunit mu
+        WHERE mu.mukey IN (%s)",
+      paste(keys, collapse = ',')
+    ))
+  }) |>
+    dplyr::bind_rows()
+
+  # --- classify by map unit name -------------------------------------------
+
+  comp_data |>
+    dplyr::mutate(
+      gridcode = dplyr::case_when(
+        stringr::str_detect(muname, stringr::regex(pat_xeric,  ignore_case = TRUE)) ~ 100L,
+        stringr::str_detect(muname, stringr::regex('muck|depressional|mostly wetland', ignore_case = TRUE)) ~ 300L,
+        stringr::str_detect(muname, stringr::regex(pat_hydric, ignore_case = TRUE)) ~ 300L,
+        stringr::str_detect(muname, stringr::regex(pat_mesic,  ignore_case = TRUE)) ~ 200L,
+        TRUE ~ NA_integer_
+      ),
+      Descrip = dplyr::case_when(
+        gridcode == 100L ~ 'Xeric',
+        gridcode == 200L ~ 'Mesic',
+        gridcode == 300L ~ 'Hydric',
+        TRUE             ~ 'Unclassified'
+      )
+    )
+}
+
 #' Fetch SSURGO map unit polygons using tiled SDA queries
 #'
 #' Subdivides the input geometry into a regular grid of tiles and issues one
