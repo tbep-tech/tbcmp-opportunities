@@ -393,3 +393,293 @@ fetch_soils_tiled <- function(geom, tile_size = 0.1, pause = 0.5) {
   dplyr::bind_rows(Filter(Negate(is.null), results))
 
 }
+
+#' Download a single WQP endpoint chunk to a cached zip file
+#'
+#' Issues a GET request to either the WQP Station or Result search endpoint for
+#' one spatial unit (bounding box or county code), saves the compressed response
+#' to \code{cache_dir}, and returns the zip file path. Re-running with the same
+#' arguments skips the download and returns the cached path immediately.
+#'
+#' @param endpoint Character. WQP endpoint name: \code{"Station"} or \code{"Result"}.
+#' @param label Character. Short label used in the cache filename and progress
+#'   messages (e.g. a county name or \code{"all"}).
+#' @param param_type Character. Spatial query type: \code{"bBox"} for a bounding-box
+#'   query or \code{"countycode"} for a WQP county-code query.
+#' @param param_value Character. The spatial parameter value — a comma-separated
+#'   bounding box string (\code{"west,south,east,north"}) or a WQP county code
+#'   (\code{"US:12:057"}).
+#' @param char_names Character vector. WQP \code{characteristicName} values to
+#'   request; passed as repeated query parameters via \code{.multi = "explode"}.
+#' @param start_date Character. Query start date in \code{"MM-DD-YYYY"} format.
+#' @param end_date Character. Query end date in \code{"MM-DD-YYYY"} format.
+#' @param cache_dir Character. Directory where the zip file is saved.
+#' @param verbose Logical. Print download progress and file size. Default \code{TRUE}.
+#'
+#' @return Character path to the zip file on success, or \code{NULL} if the
+#'   download fails after retries.
+
+wqp_download_chunk <- function(
+  endpoint,
+  label,
+  param_type,
+  param_value,
+  char_names,
+  start_date,
+  end_date,
+  cache_dir,
+  verbose = TRUE
+) {
+  zip_path <- file.path(
+    cache_dir,
+    sprintf("wqp_%s_%s.zip", tolower(endpoint), label)
+  )
+
+  if (file.exists(zip_path)) {
+    if (verbose)
+      cat(sprintf("  [%s] Using cached %s file\n", label, endpoint))
+    return(zip_path)
+  }
+
+  if (verbose) cat(sprintf("  [%s] Downloading %s...\n", label, endpoint))
+
+  req <- httr2::request(
+    sprintf("https://www.waterqualitydata.us/data/%s/search", endpoint)
+  ) |>
+    httr2::req_url_query(
+      characteristicName = char_names,
+      startDateLo        = start_date,
+      startDateHi        = end_date,
+      mimeType           = "csv",
+      zip                = "yes",
+      .multi             = "explode"
+    ) |>
+    httr2::req_timeout(600) |>
+    httr2::req_retry(max_tries = 3, backoff = ~ 30)
+
+  if (param_type == "bBox") {
+    req <- req |> httr2::req_url_query(bBox = param_value)
+  } else {
+    req <- req |> httr2::req_url_query(countycode = param_value)
+  }
+
+  # Skipping sort improves throughput on large Result downloads
+  if (endpoint == "Result") {
+    req <- req |> httr2::req_url_query(sorted = "no")
+  }
+
+  tryCatch(
+    {
+      httr2::req_perform(req, path = zip_path)
+      if (verbose) {
+        size_mb <- file.size(zip_path) / 1e6
+        cat(sprintf("  [%s] %s saved (%.1f MB)\n", label, endpoint, size_mb))
+      }
+      zip_path
+    },
+    error = function(e) {
+      message(sprintf("  [%s] %s download failed: %s", label, endpoint, e$message))
+      if (file.exists(zip_path)) file.remove(zip_path)
+      NULL
+    }
+  )
+}
+
+#' Read selected columns from the first CSV inside a WQP zip archive
+#'
+#' Extracts the first file from a zip archive returned by the Water Quality
+#' Portal into \code{cache_dir}, reads the requested columns with
+#' \code{readr::read_csv()}, normalises WQP's slash-delimited column names
+#' (e.g. \code{ResultMeasure/MeasureUnitCode} becomes
+#' \code{ResultMeasure_MeasureUnitCode}), then deletes the extracted CSV before
+#' returning.
+#'
+#' @param zip_path Character. Path to the WQP zip file.
+#' @param col_select Character vector. Column names to retain after name
+#'   normalisation. Unrecognised names are silently ignored via
+#'   \code{dplyr::any_of()}.
+#' @param cache_dir Character. Directory used as the extraction destination;
+#'   the extracted CSV is removed before the function returns.
+#'
+#' @return A \code{tibble} containing only the columns in \code{col_select}
+#'   that were present in the CSV.
+
+wqp_read_zip_csv <- function(zip_path, col_select, cache_dir) {
+  csv_name <- utils::unzip(zip_path, list = TRUE)$Name[1]
+  utils::unzip(zip_path, files = csv_name, exdir = cache_dir, overwrite = TRUE)
+  csv_path <- file.path(cache_dir, csv_name)
+  on.exit(if (file.exists(csv_path)) file.remove(csv_path))
+
+  df <- readr::read_csv(csv_path, show_col_types = FALSE, name_repair = "minimal")
+  names(df) <- gsub("/", "_", names(df), fixed = TRUE)
+  dplyr::select(df, dplyr::any_of(col_select))
+}
+
+#' Fetch salinity observations from the USEPA Water Quality Portal
+#'
+#' Queries the WQP Result and Station endpoints for salinity measurements within
+#' the bounding box of \code{counties} (default) or county by county using WQP
+#' county codes (\code{by_county = TRUE}). Downloads are cached to \code{cache_dir}
+#' so re-running skips completed chunks. Returns long-term mean salinity per
+#' station as an \code{sf} point layer.
+#'
+#' Units "psu", "PSU", "ppt", and "ppth" are treated as equivalent (~1:1 at
+#' estuarine salinities) and pooled before computing station means.
+#'
+#' @param counties An \code{sf} polygon of the study area. Must have a \code{county}
+#'   column when \code{by_county = TRUE}.
+#' @param start_date Character. Query start date in \code{"MM-DD-YYYY"} format.
+#'   Defaults to five years before today.
+#' @param end_date Character. Query end date in \code{"MM-DD-YYYY"} format.
+#'   Defaults to today.
+#' @param char_names Character vector. WQP characteristic names to request.
+#'   Default \code{c("Salinity", "Salinity, water")}.
+#' @param valid_units Character vector. Unit codes to retain (case-insensitive).
+#'   Default \code{c("psu", "PSU", "ppt", "ppth")}.
+#' @param by_county Logical. If \code{FALSE} (default), issues a single bounding-box
+#'   query. If \code{TRUE}, loops over counties using WQP \code{countycode} parameters
+#'   — use this if the full-extent download is too large or times out.
+#' @param cache_dir Character. Directory for cached zip downloads. Created if it
+#'   does not exist. Defaults to \code{data-raw/wqp_cache} in the project root.
+#' @param crs Integer EPSG code for the output CRS. Default \code{3087}.
+#' @param verbose Logical. Print progress messages. Default \code{TRUE}.
+#'
+#' @return An \code{sf} point layer in \code{crs} with columns
+#'   \code{MonitoringLocationIdentifier}, \code{salinity_mean} (mean PSU/PPT
+#'   across the query period), and \code{salinity_n} (observation count).
+
+fetch_wqp_salinity <- function(
+  counties,
+  start_date  = format(Sys.Date() - round(5 * 365.25), "%m-%d-%Y"),
+  end_date    = format(Sys.Date(), "%m-%d-%Y"),
+  char_names  = c("Salinity", "Salinity, water"),
+  valid_units = c("psu", "PSU", "ppt", "ppth"),
+  by_county   = FALSE,
+  cache_dir   = here::here("data-raw", "wqp_cache"),
+  crs         = 3087L,
+  verbose     = TRUE
+) {
+
+  # WQP county codes for the seven TBCMP counties (Florida state FIPS = 12)
+  county_fips <- c(
+    Citrus       = "US:12:017",
+    Hernando     = "US:12:053",
+    Hillsborough = "US:12:057",
+    Manatee      = "US:12:081",
+    Pasco        = "US:12:101",
+    Pinellas     = "US:12:103",
+    Sarasota     = "US:12:115"
+  )
+
+  if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+
+  counties_4326 <- sf::st_transform(counties, 4326)
+
+  # --- build download chunks -----------------------------------------------
+  # Each chunk is a named character vector: names = labels, values = spatial
+  # parameter values. param_type selects the WQP query parameter name.
+
+  if (by_county) {
+    if (!"county" %in% names(counties))
+      stop("'counties' must have a 'county' column when by_county = TRUE")
+    bad <- setdiff(counties$county, names(county_fips))
+    if (length(bad))
+      stop("No WQP county-code mapping for: ", paste(bad, collapse = ", "))
+    chunks     <- county_fips[counties$county]
+    param_type <- "countycode"
+  } else {
+    bb <- sf::st_bbox(counties_4326)
+    chunks <- c(all = paste(
+      round(c(bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"]), 5),
+      collapse = ","
+    ))
+    param_type <- "bBox"
+  }
+
+  # --- download loop -------------------------------------------------------
+
+  station_list <- vector("list", length(chunks))
+  result_list  <- vector("list", length(chunks))
+
+  for (i in seq_along(chunks)) {
+    label <- names(chunks)[i]
+    if (verbose) cat(sprintf("\nChunk %d / %d: %s\n", i, length(chunks), label))
+
+    stn_zip <- wqp_download_chunk(
+      "Station", label, param_type, chunks[[i]],
+      char_names, start_date, end_date, cache_dir, verbose
+    )
+    res_zip <- wqp_download_chunk(
+      "Result", label, param_type, chunks[[i]],
+      char_names, start_date, end_date, cache_dir, verbose
+    )
+
+    if (!is.null(stn_zip)) {
+      station_list[[i]] <- wqp_read_zip_csv(stn_zip, c(
+        "MonitoringLocationIdentifier",
+        "LongitudeMeasure",
+        "LatitudeMeasure"
+      ), cache_dir)
+    }
+
+    if (!is.null(res_zip)) {
+      result_list[[i]] <- wqp_read_zip_csv(res_zip, c(
+        "MonitoringLocationIdentifier",
+        "ActivityStartDate",
+        "CharacteristicName",
+        "ResultMeasureValue",
+        "ResultMeasure_MeasureUnitCode"
+      ), cache_dir)
+    }
+  }
+
+  # --- combine and clean ---------------------------------------------------
+
+  stations <- dplyr::bind_rows(station_list) |>
+    dplyr::distinct(MonitoringLocationIdentifier, .keep_all = TRUE) |>
+    dplyr::rename(lon = LongitudeMeasure, lat = LatitudeMeasure) |>
+    dplyr::filter(!is.na(lon), !is.na(lat))
+
+  if (verbose)
+    cat(sprintf("\nStations with coordinates: %d\n", nrow(stations)))
+
+  results <- dplyr::bind_rows(result_list) |>
+    dplyr::mutate(
+      salinity = suppressWarnings(as.numeric(ResultMeasureValue)),
+      unit     = tolower(trimws(ResultMeasure_MeasureUnitCode))
+    ) |>
+    dplyr::filter(
+      unit %in% tolower(valid_units),
+      !is.na(salinity),
+      dplyr::between(salinity, 0, 45)   # physical plausibility check
+    )
+
+  if (verbose) {
+    cat(sprintf("Observations after unit/range filter: %d\n", nrow(results)))
+    cat("Unit breakdown:\n")
+    print(dplyr::count(results, unit, sort = TRUE))
+  }
+
+  # --- mean per station, join coordinates, return sf -----------------------
+
+  sal_means <- results |>
+    dplyr::group_by(MonitoringLocationIdentifier) |>
+    dplyr::summarise(
+      salinity_mean = mean(salinity, na.rm = TRUE),
+      salinity_n    = dplyr::n(),
+      .groups       = "drop"
+    )
+
+  if (verbose)
+    cat(sprintf("Stations with salinity data: %d\n", nrow(sal_means)))
+
+  sal_sf <- sal_means |>
+    dplyr::inner_join(stations, by = "MonitoringLocationIdentifier") |>
+    sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) |>
+    sf::st_transform(crs)
+
+  if (verbose)
+    cat(sprintf("Final spatial layer: %d stations\n", nrow(sal_sf)))
+
+  sal_sf
+}
