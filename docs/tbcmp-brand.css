@@ -1,0 +1,500 @@
+/* =========================================================
+   TBCMP Brand System
+   Derived from the official Tampa Bay Coastal Master Plan
+   brand guide.
+   ========================================================= */
+
+:root {
+  /* Brand palette */
+  --tbcmp-mint: #7BCAB2;
+  --tbcmp-sand: #E0DBD4;
+  --tbcmp-offwhite: #F8F9FA;
+  --tbcmp-aqua: #8DD5DA;
+  --tbcmp-teal: #1A596B;
+  --tbcmp-blue: #418DA8;
+  --tbcmp-green: #173F20;
+  --tbcmp-orange: #E59A42;
+
+  /* Semantic tokens */
+  --color-bg: var(--tbcmp-offwhite);
+  --color-surface: #FFFFFF;
+  --color-surface-alt: var(--tbcmp-sand);
+  --color-text: var(--tbcmp-teal);
+  --color-text-soft: #4c7180;
+  --color-heading: var(--tbcmp-teal);
+  --color-link: var(--tbcmp-orange);
+  --color-link-hover: #c97e27;
+  --color-border: #d8dde0;
+
+  /* Type */
+  --font-family-base: "Inter Tight", Arial, Helvetica, sans-serif;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Layout */
+  --page-max: 1100px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --shadow-soft: 0 10px 30px rgba(26, 89, 107, 0.08);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: var(--color-link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.12em;
+}
+
+a:hover,
+a:focus {
+  color: var(--color-link-hover);
+}
+
+p,
+ul,
+ol,
+blockquote,
+pre {
+  margin-top: 0;
+  margin-bottom: var(--space-4);
+}
+
+ul,
+ol {
+  padding-left: 1.25rem;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-6) 0;
+}
+
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+pre {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  color: var(--tbcmp-green);
+}
+
+/* =========================================================
+   Typography
+   Brand guide notes:
+   - H1: Inter Tight Light
+   - H2: Inter Tight Medium
+   - H3: Inter Tight Medium
+   - P : Inter Tight Regular
+   ========================================================= */
+
+h1,
+.h1 {
+  margin: 0 0 var(--space-5);
+  color: var(--color-heading);
+  font-family: var(--font-family-base);
+  font-weight: 300;
+  font-size: clamp(2.75rem, 6vw, 5rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+h2,
+.h2 {
+  margin: 0 0 var(--space-4);
+  color: var(--color-heading);
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  font-size: clamp(2rem, 3.2vw, 3.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+h3,
+.h3 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-heading);
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  font-size: clamp(1.25rem, 2vw, 1.625rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+h4,
+.h4 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-heading);
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  font-size: 1rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+p,
+.body,
+.body-copy {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-text);
+}
+
+.lead {
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.small,
+.caption {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color-text-soft);
+}
+
+.text-light {
+  font-weight: 300;
+}
+
+.text-medium {
+  font-weight: 500;
+}
+
+.text-orange {
+  color: var(--tbcmp-orange);
+}
+
+.text-mint {
+  color: var(--tbcmp-mint);
+}
+
+.text-blue {
+  color: var(--tbcmp-blue);
+}
+
+.text-green {
+  color: var(--tbcmp-green);
+}
+
+/* =========================================================
+   Layout helpers
+   ========================================================= */
+
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5);
+}
+
+.section {
+  margin-bottom: var(--space-8);
+}
+
+.stack > * + * {
+  margin-top: var(--space-4);
+}
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.grid-2,
+.grid-3,
+.grid-4 {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-5);
+  border-radius: var(--radius-sm);
+}
+
+.block-sand {
+  background: var(--color-surface-alt);
+  border: 0;
+}
+
+.block-teal {
+  background: var(--tbcmp-teal);
+  color: #fff;
+  border: 0;
+}
+
+.block-teal :is(p, h1, h2, h3, h4, a, li, .small, .caption) {
+  color: #fff;
+}
+
+.card-soft {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-5);
+}
+
+/* =========================================================
+   Buttons and links
+   Notes:
+   - Keep rectangular/blocky
+   - Small radius only
+   - No pill buttons
+   ========================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0.875rem 1.35rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  font-family: var(--font-family-base);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.btn:hover,
+.btn:focus {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--tbcmp-teal);
+  color: #fff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: #144c5c;
+  color: #fff;
+}
+
+.btn-accent {
+  background: var(--tbcmp-orange);
+  color: #fff;
+}
+
+.btn-accent:hover,
+.btn-accent:focus {
+  background: #d68e38;
+  color: #fff;
+}
+
+.btn-outline {
+  border-color: var(--tbcmp-teal);
+  color: var(--tbcmp-teal);
+  background: transparent;
+}
+
+.btn-outline:hover,
+.btn-outline:focus {
+  background: rgba(26, 89, 107, 0.06);
+  color: var(--tbcmp-teal);
+}
+
+.link-inline {
+  color: var(--tbcmp-orange);
+  text-decoration: underline;
+}
+
+.link-muted {
+  color: var(--tbcmp-teal);
+  text-decoration: underline;
+}
+
+/* =========================================================
+   Color swatches
+   ========================================================= */
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-4);
+}
+
+.swatch {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: #fff;
+}
+
+.swatch-chip {
+  min-height: 110px;
+}
+
+.swatch-meta {
+  padding: 0.85rem 0.95rem 1rem;
+}
+
+.swatch-meta strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.swatch-meta span {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-text-soft);
+}
+
+/* =========================================================
+   Notes / usage callouts
+   ========================================================= */
+
+.note {
+  border-left: 4px solid var(--tbcmp-orange);
+  padding: var(--space-4) var(--space-5);
+  background: rgba(229, 154, 66, 0.08);
+}
+
+.rule {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #fff;
+}
+
+.rule-do {
+  border-left: 4px solid var(--tbcmp-mint);
+}
+
+.rule-dont {
+  border-left: 4px solid var(--tbcmp-orange);
+}
+
+/* =========================================================
+   Sample media treatment
+   ========================================================= */
+
+.media-frame {
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--tbcmp-green);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-sample {
+  min-height: 260px;
+  padding: var(--space-6);
+  background:
+    linear-gradient(rgba(23, 63, 32, 0.18), rgba(23, 63, 32, 0.18)),
+    linear-gradient(120deg, #0f6d66 0%, #16c2c5 35%, #e4dccf 100%);
+  display: flex;
+  align-items: end;
+}
+
+.hero-sample h1 {
+  color: #fff;
+  max-width: 10ch;
+  margin-bottom: 0;
+}
+
+/* =========================================================
+   Utility classes
+   ========================================================= */
+
+.mt-0 { margin-top: 0 !important; }
+.mb-0 { margin-bottom: 0 !important; }
+.mb-2 { margin-bottom: var(--space-2) !important; }
+.mb-3 { margin-bottom: var(--space-3) !important; }
+.mb-4 { margin-bottom: var(--space-4) !important; }
+.mb-5 { margin-bottom: var(--space-5) !important; }
+.mb-6 { margin-bottom: var(--space-6) !important; }
+
+.center { text-align: center; }
+.max-70 { max-width: 70ch; }
+.max-55 { max-width: 55ch; }
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .page {
+    padding: var(--space-7) var(--space-4);
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-sample {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 560px) {
+  .btn {
+    width: 100%;
+  }
+
+  .cluster {
+    align-items: stretch;
+  }
+}
