@@ -524,7 +524,8 @@ wqp_read_zip_csv <- function(zip_path, col_select, cache_dir) {
   csv_path <- file.path(cache_dir, csv_name)
   on.exit(if (file.exists(csv_path)) file.remove(csv_path))
 
-  df <- readr::read_csv(csv_path, show_col_types = FALSE, name_repair = "minimal")
+  df <- readr::read_csv(csv_path, show_col_types = FALSE, name_repair = "minimal",
+    col_types = readr::cols(ResultMeasureValue = readr::col_character()))
   names(df) <- gsub("/", "_", names(df), fixed = TRUE)
   dplyr::select(df, dplyr::any_of(col_select))
 }
