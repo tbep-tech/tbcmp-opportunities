@@ -428,6 +428,7 @@ wqp_download_chunk <- function(
   start_date,
   end_date,
   cache_dir,
+  data_profile = "resultPhysChem",
   verbose = TRUE
 ) {
   zip_path <- file.path(
@@ -457,20 +458,28 @@ wqp_download_chunk <- function(
     httr2::req_timeout(600) |>
     httr2::req_retry(max_tries = 3, backoff = ~ 30)
 
-  if (param_type == "bBox") {
-    req <- req |> httr2::req_url_query(bBox = param_value)
-  } else {
-    req <- req |> httr2::req_url_query(countycode = param_value)
-  }
-
   # Skipping sort improves throughput on large Result downloads
   if (endpoint == "Result") {
     req <- req |> httr2::req_url_query(sorted = "no")
   }
 
+  if (!is.null(data_profile)) {
+    req <- req |> httr2::req_url_query(dataProfile = data_profile)
+  }
+
+  # Add spatial param last so I() is not re-encoded by subsequent req_url_query calls
+  if (param_type == "bBox") {
+    req <- req |> httr2::req_url_query(bBox = param_value)
+  } else {
+    req <- req |> httr2::req_url_query(countycode = I(param_value))
+  }
+
+  if (verbose) message("  [DEBUG] URL: ", req$url)
+
   tryCatch(
     {
-      httr2::req_perform(req, path = zip_path)
+      resp <- httr2::req_perform(req)
+      writeBin(httr2::resp_body_raw(resp), zip_path)
       if (verbose) {
         size_mb <- file.size(zip_path) / 1e6
         cat(sprintf("  [%s] %s saved (%.1f MB)\n", label, endpoint, size_mb))
@@ -478,7 +487,12 @@ wqp_download_chunk <- function(
       zip_path
     },
     error = function(e) {
-      message(sprintf("  [%s] %s download failed: %s", label, endpoint, e$message))
+      body <- tryCatch(
+        httr2::resp_body_string(e$response),
+        error = function(e2) "(no body)"
+      )
+      message(sprintf("  [%s] %s download failed: %s\n  WQP response: %s",
+        label, endpoint, e$message, body))
       if (file.exists(zip_path)) file.remove(zip_path)
       NULL
     }
@@ -552,7 +566,7 @@ fetch_wqp_salinity <- function(
   counties,
   start_date  = format(Sys.Date() - round(5 * 365.25), "%m-%d-%Y"),
   end_date    = format(Sys.Date(), "%m-%d-%Y"),
-  char_names  = c("Salinity", "Salinity, water"),
+  char_names  = "Salinity",
   valid_units = c("psu", "PSU", "ppt", "ppth"),
   by_county   = FALSE,
   cache_dir   = here::here("data-raw", "wqp_cache"),
@@ -598,33 +612,23 @@ fetch_wqp_salinity <- function(
 
   # --- download loop -------------------------------------------------------
 
-  station_list <- vector("list", length(chunks))
-  result_list  <- vector("list", length(chunks))
+  result_list <- vector("list", length(chunks))
 
   for (i in seq_along(chunks)) {
     label <- names(chunks)[i]
     if (verbose) cat(sprintf("\nChunk %d / %d: %s\n", i, length(chunks), label))
 
-    stn_zip <- wqp_download_chunk(
-      "Station", label, param_type, chunks[[i]],
-      char_names, start_date, end_date, cache_dir, verbose
-    )
     res_zip <- wqp_download_chunk(
       "Result", label, param_type, chunks[[i]],
-      char_names, start_date, end_date, cache_dir, verbose
+      char_names, start_date, end_date, cache_dir,
+      data_profile = "resultPhysChem", verbose
     )
-
-    if (!is.null(stn_zip)) {
-      station_list[[i]] <- wqp_read_zip_csv(stn_zip, c(
-        "MonitoringLocationIdentifier",
-        "LongitudeMeasure",
-        "LatitudeMeasure"
-      ), cache_dir)
-    }
 
     if (!is.null(res_zip)) {
       result_list[[i]] <- wqp_read_zip_csv(res_zip, c(
         "MonitoringLocationIdentifier",
+        "LongitudeMeasure",
+        "LatitudeMeasure",
         "ActivityStartDate",
         "CharacteristicName",
         "ResultMeasureValue",
@@ -635,46 +639,37 @@ fetch_wqp_salinity <- function(
 
   # --- combine and clean ---------------------------------------------------
 
-  stations <- dplyr::bind_rows(station_list) |>
-    dplyr::distinct(MonitoringLocationIdentifier, .keep_all = TRUE) |>
-    dplyr::rename(lon = LongitudeMeasure, lat = LatitudeMeasure) |>
-    dplyr::filter(!is.na(lon), !is.na(lat))
-
-  if (verbose)
-    cat(sprintf("\nStations with coordinates: %d\n", nrow(stations)))
-
   results <- dplyr::bind_rows(result_list) |>
     dplyr::mutate(
       salinity = suppressWarnings(as.numeric(ResultMeasureValue)),
-      unit     = tolower(trimws(ResultMeasure_MeasureUnitCode))
+      unit     = tolower(trimws(ResultMeasure_MeasureUnitCode)),
+      lon      = suppressWarnings(as.numeric(LongitudeMeasure)),
+      lat      = suppressWarnings(as.numeric(LatitudeMeasure))
     ) |>
     dplyr::filter(
       unit %in% tolower(valid_units),
       !is.na(salinity),
-      dplyr::between(salinity, 0, 45)   # physical plausibility check
+      dplyr::between(salinity, 0, 45),  # physical plausibility check
+      !is.na(lon), !is.na(lat)
     )
 
   if (verbose) {
-    cat(sprintf("Observations after unit/range filter: %d\n", nrow(results)))
+    cat(sprintf("\nObservations after unit/range filter: %d\n", nrow(results)))
     cat("Unit breakdown:\n")
     print(dplyr::count(results, unit, sort = TRUE))
   }
 
-  # --- mean per station, join coordinates, return sf -----------------------
+  # --- mean per station, return sf -----------------------------------------
 
-  sal_means <- results |>
+  sal_sf <- results |>
     dplyr::group_by(MonitoringLocationIdentifier) |>
     dplyr::summarise(
       salinity_mean = mean(salinity, na.rm = TRUE),
       salinity_n    = dplyr::n(),
+      lon           = dplyr::first(lon),
+      lat           = dplyr::first(lat),
       .groups       = "drop"
-    )
-
-  if (verbose)
-    cat(sprintf("Stations with salinity data: %d\n", nrow(sal_means)))
-
-  sal_sf <- sal_means |>
-    dplyr::inner_join(stations, by = "MonitoringLocationIdentifier") |>
+    ) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) |>
     sf::st_transform(crs)
 

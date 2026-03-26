@@ -176,6 +176,14 @@ leaflet() |>
 
 # salinity ---------------------------------------------------------------
 
+# Load county boundaries
+load(file = here('data', 'tbcmp_cnt.RData'))
+
+wqp_salinity <- fetch_wqp_salinity(
+  counties = tbcmp_cnt,
+  by_county = TRUE
+)
+
 # soils ------------------------------------------------------------------
 
 # Retrieve SSURGO soils data for the 7-county TBCMP area via NRCS Soil Data
