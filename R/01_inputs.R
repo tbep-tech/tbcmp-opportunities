@@ -156,7 +156,7 @@ load(file = here('data', 'coastal_stratum.RData'))
 coastal_stratum_4326 <- st_transform(coastal_stratum, 4326)
 
 leaflet() |>
-  addTiles() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
   addPolygons(
     data = coastal_4326,
     color = "blue",
@@ -180,9 +180,30 @@ leaflet() |>
 load(file = here('data', 'tbcmp_cnt.RData'))
 
 wqp_salinity <- fetch_wqp_salinity(
-  counties = tbcmp_cnt,
+  counties  = tbcmp_cnt,
   by_county = TRUE
 )
+
+salinity_layer <- build_salinity_layer(
+  sal_pts      = wqp_salinity,
+  cudem        = cudem,
+  mllw_surface = mllw_surface,
+  counties     = tbcmp_cnt
+)
+
+save(salinity_layer, file = here('data', 'salinity_layer.RData'), compress = 'xz')
+
+tomap <- wqp_salinity |>
+  st_transform(4326)
+
+leaflet(tomap) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addCircleMarkers(
+    color = ~ ifelse(salinity_mean < 5, 'blue', 'red'),
+    radius = 4,
+    fillOpacity = 0.7,
+    label = ~ paste0('Salinity: ', round(salinity_mean, 2))
+  )
 
 # soils ------------------------------------------------------------------
 
@@ -222,7 +243,7 @@ soil_pal <- colorFactor(
 )
 
 leaflet() |>
-  # addTiles() |>
+  # addProviderTiles(providers$CartoDB.Positron) |>
   addPolygons(
     data = soils_tb,
     color = ~ soil_pal(gridcode),

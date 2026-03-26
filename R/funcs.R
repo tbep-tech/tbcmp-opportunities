@@ -36,14 +36,20 @@ query_vdatum <- function(lon, lat, unit = "m") {
     }
   )
 
-  if (is.null(resp)) return(NA_real_)
+  if (is.null(resp)) {
+    return(NA_real_)
+  }
 
   result <- tryCatch(httr2::resp_body_json(resp), error = function(e) NULL)
-  if (is.null(result)) return(NA_real_)
+  if (is.null(result)) {
+    return(NA_real_)
+  }
 
   val <- suppressWarnings(as.numeric(result$t_z))
 
-  if (!is.na(val) && val != -999999) return(val)
+  if (!is.na(val) && val != -999999) {
+    return(val)
+  }
 
   NA_real_
 }
@@ -68,7 +74,11 @@ build_vdatum_grid <- function(bbox_4326, counties_4326, grid_spacing = 0.05) {
     dplyr::as_tibble()
 
   grid_sf <- sf::st_as_sf(grid_pts, coords = c("lon", "lat"), crs = 4326)
-  in_area <- sf::st_intersects(grid_sf, sf::st_union(counties_4326), sparse = FALSE)[, 1]
+  in_area <- sf::st_intersects(
+    grid_sf,
+    sf::st_union(counties_4326),
+    sparse = FALSE
+  )[, 1]
   grid_pts[in_area, ]
 }
 
@@ -90,7 +100,12 @@ batch_query_vdatum <- function(grid_pts) {
     offsets[i] <- query_vdatum(grid_pts$lon[i], grid_pts$lat[i])
 
     if (i %% 10 == 0 || i == nrow(grid_pts)) {
-      cat(sprintf("  %d / %d complete (%.0f%%)\n", i, nrow(grid_pts), 100 * i / nrow(grid_pts)))
+      cat(sprintf(
+        "  %d / %d complete (%.0f%%)\n",
+        i,
+        nrow(grid_pts),
+        100 * i / nrow(grid_pts)
+      ))
     }
 
     Sys.sleep(0.5) # ~2 req/sec
@@ -142,7 +157,11 @@ build_mllw_surface <- function(grid_pts, bbox_4326, counties_3087, dem) {
   pred_grid$mllw_offset_m <- predict(tps_model, as.matrix(pred_grid))
 
   offset_rast_4326 <- terra::rast(pred_grid, type = "xyz", crs = "EPSG:4326")
-  offset_rast_3087 <- terra::project(offset_rast_4326, "EPSG:3087", method = "bilinear")
+  offset_rast_3087 <- terra::project(
+    offset_rast_4326,
+    "EPSG:3087",
+    method = "bilinear"
+  )
   offset_rast_3087 <- terra::mask(offset_rast_3087, terra::vect(counties_3087))
 
   mllw_surface <- terra::resample(offset_rast_3087, dem, method = "bilinear")
@@ -166,7 +185,11 @@ build_mllw_surface <- function(grid_pts, bbox_4326, counties_3087, dem) {
 #' @return An \code{sf} polygon in EPSG:3087 with columns \code{stratum},
 #'   \code{lower_datum}, \code{upper_elev_ft}, \code{upper_elev_m}, and \code{crs}.
 
-make_coastal_stratum <- function(dem, mllw_surface, upper_bound_m = 5 * 0.3048) {
+make_coastal_stratum <- function(
+  dem,
+  mllw_surface,
+  upper_bound_m = 5 * 0.3048
+) {
   cat("Creating coastal stratum layer...\n")
 
   stratum_rast <- dem >= mllw_surface & dem <= upper_bound_m
@@ -207,7 +230,6 @@ make_coastal_stratum <- function(dem, mllw_surface, upper_bound_m = 5 * 0.3048) 
 #'   and clipped to the union of \code{counties}.
 
 build_soils_layer <- function(counties, crs = 3087L, verbose = TRUE) {
-
   # --- step 1: fetch polygons county by county -----------------------------
 
   mupolygon_list <- vector('list', nrow(counties))
@@ -274,43 +296,143 @@ build_soils_layer <- function(counties, crs = 3087L, verbose = TRUE) {
 #'   will have \code{NA} gridcode and can be dropped downstream.
 
 classify_soils_muname <- function(mukeys, chunk_size = 500L) {
-
   # --- series lookup lists (Ries & Scheda 2014) ----------------------------
 
   series_hydric <- c(
-    'Sellers', 'Zephyr', 'Lacoochee', 'Okeelanta', 'Terra Ceia',
-    'Weekiwachee', 'Samsula', 'Homosassa', 'Tobiska', 'Bessie', 'Delray',
-    'Floridana', 'Kesson', 'Wulfert', 'Manatee', 'Okeechobee', 'Palmetto',
-    'Broward', 'Matlacha', 'Haplaquents', 'Hydraquents', 'Holopaw', 'Nittaw',
-    'Copeland', 'Waccasassa'
+    'Sellers',
+    'Zephyr',
+    'Lacoochee',
+    'Okeelanta',
+    'Terra Ceia',
+    'Weekiwachee',
+    'Samsula',
+    'Homosassa',
+    'Tobiska',
+    'Bessie',
+    'Delray',
+    'Floridana',
+    'Kesson',
+    'Wulfert',
+    'Manatee',
+    'Okeechobee',
+    'Palmetto',
+    'Broward',
+    'Matlacha',
+    'Haplaquents',
+    'Hydraquents',
+    'Holopaw',
+    'Nittaw',
+    'Copeland',
+    'Waccasassa'
   )
 
   series_mesic <- c(
-    'Wauchula', 'Pomona', 'Pineda', 'Felda', 'Myakka', 'Ora', 'Vero',
-    'Immokalee', 'Smyrna', 'Basinger', 'Anclote', 'Pompano', 'EauGallie',
-    'Eau Gallie', 'Chobee', 'Paisley', 'Arredondo', 'Cassia', 'Blichton',
-    'Flemington', 'Placid', 'Aripeka', 'Wabasso', 'Ona', 'Pinellas',
-    'St. Johns', 'Winder', 'Bradenton', 'Canova', 'Malabar', 'Seffner',
-    'Parkwood', 'Braden', 'Eaton', 'Farmton', 'Kanapaha', 'Lynne',
-    'Nobleton', 'Oldsmar', 'Waveland', 'Brynwood', 'Jumper', 'Lutterloh',
-    'Mabel', 'Masaryk', 'Pople', 'Punta', 'Tarrytown', 'Wekiva'
+    'Wauchula',
+    'Pomona',
+    'Pineda',
+    'Felda',
+    'Myakka',
+    'Ora',
+    'Vero',
+    'Immokalee',
+    'Smyrna',
+    'Basinger',
+    'Anclote',
+    'Pompano',
+    'EauGallie',
+    'Eau Gallie',
+    'Chobee',
+    'Paisley',
+    'Arredondo',
+    'Cassia',
+    'Blichton',
+    'Flemington',
+    'Placid',
+    'Aripeka',
+    'Wabasso',
+    'Ona',
+    'Pinellas',
+    'St. Johns',
+    'Winder',
+    'Bradenton',
+    'Canova',
+    'Malabar',
+    'Seffner',
+    'Parkwood',
+    'Braden',
+    'Eaton',
+    'Farmton',
+    'Kanapaha',
+    'Lynne',
+    'Nobleton',
+    'Oldsmar',
+    'Waveland',
+    'Brynwood',
+    'Jumper',
+    'Lutterloh',
+    'Mabel',
+    'Masaryk',
+    'Pople',
+    'Punta',
+    'Tarrytown',
+    'Wekiva'
   )
 
   series_xeric <- c(
-    'Tavares', 'Sparr', 'Adamsville', 'Astatula', 'Chandler', 'Electra',
-    'Paola', 'Narcoossee', 'Lake', 'Pomello', 'Kendrick', 'Lochloosa',
-    'Newnan', 'Gainesville', 'Micanopy', 'Millhopper', 'Orlando', 'Zofo',
-    'Zolfo', 'Candler', 'Nobleston', 'Beaches', 'Pits', 'Urban land',
-    'Quartzipsamments', 'Arents', 'Dumps', 'Canaveral', 'Orsino',
-    'Palm Beach', 'St. Augustine', 'Apopka', 'Archbold', 'Duette',
-    'Fort Meade', 'Gypsum land', 'Jonesville', 'Neilhurst', 'Udorthents',
-    'Slickens', 'Citronelle', 'Florahome', 'Ft. Green', 'Jonathan',
-    'Redlevel', 'Shadeville', 'St. Lucie', 'Sumterville', 'Williston'
+    'Tavares',
+    'Sparr',
+    'Adamsville',
+    'Astatula',
+    'Chandler',
+    'Electra',
+    'Paola',
+    'Narcoossee',
+    'Lake',
+    'Pomello',
+    'Kendrick',
+    'Lochloosa',
+    'Newnan',
+    'Gainesville',
+    'Micanopy',
+    'Millhopper',
+    'Orlando',
+    'Zofo',
+    'Zolfo',
+    'Candler',
+    'Nobleston',
+    'Beaches',
+    'Pits',
+    'Urban land',
+    'Quartzipsamments',
+    'Arents',
+    'Dumps',
+    'Canaveral',
+    'Orsino',
+    'Palm Beach',
+    'St. Augustine',
+    'Apopka',
+    'Archbold',
+    'Duette',
+    'Fort Meade',
+    'Gypsum land',
+    'Jonesville',
+    'Neilhurst',
+    'Udorthents',
+    'Slickens',
+    'Citronelle',
+    'Florahome',
+    'Ft. Green',
+    'Jonathan',
+    'Redlevel',
+    'Shadeville',
+    'St. Lucie',
+    'Sumterville',
+    'Williston'
   )
 
   pat_hydric <- paste0('\\b(', paste(series_hydric, collapse = '|'), ')\\b')
-  pat_mesic  <- paste0('\\b(', paste(series_mesic,  collapse = '|'), ')\\b')
-  pat_xeric  <- paste0('\\b(', paste(series_xeric,  collapse = '|'), ')\\b')
+  pat_mesic <- paste0('\\b(', paste(series_mesic, collapse = '|'), ')\\b')
+  pat_xeric <- paste0('\\b(', paste(series_xeric, collapse = '|'), ')\\b')
 
   # --- query munames from SDA in chunks ------------------------------------
 
@@ -331,17 +453,29 @@ classify_soils_muname <- function(mukeys, chunk_size = 500L) {
   comp_data |>
     dplyr::mutate(
       gridcode = dplyr::case_when(
-        stringr::str_detect(muname, stringr::regex(pat_xeric,  ignore_case = TRUE)) ~ 100L,
-        stringr::str_detect(muname, stringr::regex('muck|depressional|mostly wetland', ignore_case = TRUE)) ~ 300L,
-        stringr::str_detect(muname, stringr::regex(pat_hydric, ignore_case = TRUE)) ~ 300L,
-        stringr::str_detect(muname, stringr::regex(pat_mesic,  ignore_case = TRUE)) ~ 200L,
+        stringr::str_detect(
+          muname,
+          stringr::regex(pat_xeric, ignore_case = TRUE)
+        ) ~ 100L,
+        stringr::str_detect(
+          muname,
+          stringr::regex('muck|depressional|mostly wetland', ignore_case = TRUE)
+        ) ~ 300L,
+        stringr::str_detect(
+          muname,
+          stringr::regex(pat_hydric, ignore_case = TRUE)
+        ) ~ 300L,
+        stringr::str_detect(
+          muname,
+          stringr::regex(pat_mesic, ignore_case = TRUE)
+        ) ~ 200L,
         TRUE ~ NA_integer_
       ),
       Descrip = dplyr::case_when(
         gridcode == 100L ~ 'Xeric',
         gridcode == 200L ~ 'Mesic',
         gridcode == 300L ~ 'Hydric',
-        TRUE             ~ 'Unclassified'
+        TRUE ~ 'Unclassified'
       )
     )
 }
@@ -362,27 +496,35 @@ classify_soils_muname <- function(mukeys, chunk_size = 500L) {
 #'   fragments, which are reconciled when dissolving by soil type downstream.
 
 fetch_soils_tiled <- function(geom, tile_size = 0.1, pause = 0.5) {
-
   geom_4326 <- sf::st_transform(geom, 4326)
 
   tiles <- sf::st_make_grid(geom_4326, cellsize = tile_size) |>
     sf::st_as_sf() |>
     sf::st_filter(geom_4326)
 
-  cat(sprintf('  Querying %d tiles (%.2f deg each)...\n', nrow(tiles), tile_size))
+  cat(sprintf(
+    '  Querying %d tiles (%.2f deg each)...\n',
+    nrow(tiles),
+    tile_size
+  ))
 
   results <- vector('list', nrow(tiles))
 
   for (j in seq_len(nrow(tiles))) {
     results[[j]] <- tryCatch(
       soilDB::SDA_spatialQuery(
-        geom             = tiles[j, ],
-        what             = 'mupolygon',
-        db               = 'SSURGO',
+        geom = tiles[j, ],
+        what = 'mupolygon',
+        db = 'SSURGO',
         geomIntersection = TRUE
       ),
       error = function(e) {
-        message(sprintf('  Tile %d/%d failed: %s', j, nrow(tiles), conditionMessage(e)))
+        message(sprintf(
+          '  Tile %d/%d failed: %s',
+          j,
+          nrow(tiles),
+          conditionMessage(e)
+        ))
         NULL
       }
     )
@@ -391,7 +533,6 @@ fetch_soils_tiled <- function(geom, tile_size = 0.1, pause = 0.5) {
   }
 
   dplyr::bind_rows(Filter(Negate(is.null), results))
-
 }
 
 #' Download a single WQP endpoint chunk to a cached zip file
@@ -437,26 +578,29 @@ wqp_download_chunk <- function(
   )
 
   if (file.exists(zip_path)) {
-    if (verbose)
+    if (verbose) {
       cat(sprintf("  [%s] Using cached %s file\n", label, endpoint))
+    }
     return(zip_path)
   }
 
-  if (verbose) cat(sprintf("  [%s] Downloading %s...\n", label, endpoint))
+  if (verbose) {
+    cat(sprintf("  [%s] Downloading %s...\n", label, endpoint))
+  }
 
   req <- httr2::request(
     sprintf("https://www.waterqualitydata.us/data/%s/search", endpoint)
   ) |>
     httr2::req_url_query(
       characteristicName = char_names,
-      startDateLo        = start_date,
-      startDateHi        = end_date,
-      mimeType           = "csv",
-      zip                = "yes",
-      .multi             = "explode"
+      startDateLo = start_date,
+      startDateHi = end_date,
+      mimeType = "csv",
+      zip = "yes",
+      .multi = "explode"
     ) |>
     httr2::req_timeout(600) |>
-    httr2::req_retry(max_tries = 3, backoff = ~ 30)
+    httr2::req_retry(max_tries = 3, backoff = ~30)
 
   # Skipping sort improves throughput on large Result downloads
   if (endpoint == "Result") {
@@ -474,7 +618,9 @@ wqp_download_chunk <- function(
     req <- req |> httr2::req_url_query(countycode = I(param_value))
   }
 
-  if (verbose) message("  [DEBUG] URL: ", req$url)
+  if (verbose) {
+    message("  [DEBUG] URL: ", req$url)
+  }
 
   tryCatch(
     {
@@ -491,9 +637,16 @@ wqp_download_chunk <- function(
         httr2::resp_body_string(e$response),
         error = function(e2) "(no body)"
       )
-      message(sprintf("  [%s] %s download failed: %s\n  WQP response: %s",
-        label, endpoint, e$message, body))
-      if (file.exists(zip_path)) file.remove(zip_path)
+      message(sprintf(
+        "  [%s] %s download failed: %s\n  WQP response: %s",
+        label,
+        endpoint,
+        e$message,
+        body
+      ))
+      if (file.exists(zip_path)) {
+        file.remove(zip_path)
+      }
       NULL
     }
   )
@@ -524,8 +677,12 @@ wqp_read_zip_csv <- function(zip_path, col_select, cache_dir) {
   csv_path <- file.path(cache_dir, csv_name)
   on.exit(if (file.exists(csv_path)) file.remove(csv_path))
 
-  df <- readr::read_csv(csv_path, show_col_types = FALSE, name_repair = "minimal",
-    col_types = readr::cols(ResultMeasureValue = readr::col_character()))
+  df <- readr::read_csv(
+    csv_path,
+    show_col_types = FALSE,
+    name_repair = "minimal",
+    col_types = readr::cols(.default = readr::col_character())
+  )
   names(df) <- gsub("/", "_", names(df), fixed = TRUE)
   dplyr::select(df, dplyr::any_of(col_select))
 }
@@ -565,28 +722,29 @@ wqp_read_zip_csv <- function(zip_path, col_select, cache_dir) {
 
 fetch_wqp_salinity <- function(
   counties,
-  start_date  = format(Sys.Date() - round(5 * 365.25), "%m-%d-%Y"),
-  end_date    = format(Sys.Date(), "%m-%d-%Y"),
-  char_names  = "Salinity",
+  start_date = format(Sys.Date() - round(5 * 365.25), "%m-%d-%Y"),
+  end_date = format(Sys.Date(), "%m-%d-%Y"),
+  char_names = "Salinity",
   valid_units = c("psu", "PSU", "ppt", "ppth"),
-  by_county   = FALSE,
-  cache_dir   = here::here("data-raw", "wqp_cache"),
-  crs         = 3087L,
-  verbose     = TRUE
+  by_county = FALSE,
+  cache_dir = here::here("data-raw", "wqp_cache"),
+  crs = 3087L,
+  verbose = TRUE
 ) {
-
   # WQP county codes for the seven TBCMP counties (Florida state FIPS = 12)
   county_fips <- c(
-    Citrus       = "US:12:017",
-    Hernando     = "US:12:053",
+    Citrus = "US:12:017",
+    Hernando = "US:12:053",
     Hillsborough = "US:12:057",
-    Manatee      = "US:12:081",
-    Pasco        = "US:12:101",
-    Pinellas     = "US:12:103",
-    Sarasota     = "US:12:115"
+    Manatee = "US:12:081",
+    Pasco = "US:12:101",
+    Pinellas = "US:12:103",
+    Sarasota = "US:12:115"
   )
 
-  if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+  if (!dir.exists(cache_dir)) {
+    dir.create(cache_dir, recursive = TRUE)
+  }
 
   counties_4326 <- sf::st_transform(counties, 4326)
 
@@ -595,19 +753,23 @@ fetch_wqp_salinity <- function(
   # parameter values. param_type selects the WQP query parameter name.
 
   if (by_county) {
-    if (!"county" %in% names(counties))
+    if (!"county" %in% names(counties)) {
       stop("'counties' must have a 'county' column when by_county = TRUE")
+    }
     bad <- setdiff(counties$county, names(county_fips))
-    if (length(bad))
+    if (length(bad)) {
       stop("No WQP county-code mapping for: ", paste(bad, collapse = ", "))
-    chunks     <- county_fips[counties$county]
+    }
+    chunks <- county_fips[counties$county]
     param_type <- "countycode"
   } else {
     bb <- sf::st_bbox(counties_4326)
-    chunks <- c(all = paste(
-      round(c(bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"]), 5),
-      collapse = ","
-    ))
+    chunks <- c(
+      all = paste(
+        round(c(bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"]), 5),
+        collapse = ","
+      )
+    )
     param_type <- "bBox"
   }
 
@@ -617,24 +779,37 @@ fetch_wqp_salinity <- function(
 
   for (i in seq_along(chunks)) {
     label <- names(chunks)[i]
-    if (verbose) cat(sprintf("\nChunk %d / %d: %s\n", i, length(chunks), label))
+    if (verbose) {
+      cat(sprintf("\nChunk %d / %d: %s\n", i, length(chunks), label))
+    }
 
     res_zip <- wqp_download_chunk(
-      "Result", label, param_type, chunks[[i]],
-      char_names, start_date, end_date, cache_dir,
-      data_profile = "resultPhysChem", verbose
+      "Result",
+      label,
+      param_type,
+      chunks[[i]],
+      char_names,
+      start_date,
+      end_date,
+      cache_dir,
+      data_profile = "resultPhysChem",
+      verbose
     )
 
     if (!is.null(res_zip)) {
-      result_list[[i]] <- wqp_read_zip_csv(res_zip, c(
-        "MonitoringLocationIdentifier",
-        "LongitudeMeasure",
-        "LatitudeMeasure",
-        "ActivityStartDate",
-        "CharacteristicName",
-        "ResultMeasureValue",
-        "ResultMeasure_MeasureUnitCode"
-      ), cache_dir)
+      result_list[[i]] <- wqp_read_zip_csv(
+        res_zip,
+        c(
+          "MonitoringLocationIdentifier",
+          "ActivityLocation_LongitudeMeasure",
+          "ActivityLocation_LatitudeMeasure",
+          "ActivityStartDate",
+          "CharacteristicName",
+          "ResultMeasureValue",
+          "ResultMeasure_MeasureUnitCode"
+        ),
+        cache_dir
+      )
     }
   }
 
@@ -643,15 +818,16 @@ fetch_wqp_salinity <- function(
   results <- dplyr::bind_rows(result_list) |>
     dplyr::mutate(
       salinity = suppressWarnings(as.numeric(ResultMeasureValue)),
-      unit     = tolower(trimws(ResultMeasure_MeasureUnitCode)),
-      lon      = suppressWarnings(as.numeric(LongitudeMeasure)),
-      lat      = suppressWarnings(as.numeric(LatitudeMeasure))
+      unit = tolower(trimws(`ResultMeasure_MeasureUnitCode`)),
+      lon = suppressWarnings(as.numeric(`ActivityLocation_LongitudeMeasure`)),
+      lat = suppressWarnings(as.numeric(`ActivityLocation_LatitudeMeasure`))
     ) |>
     dplyr::filter(
       unit %in% tolower(valid_units),
       !is.na(salinity),
-      dplyr::between(salinity, 0, 45),  # physical plausibility check
-      !is.na(lon), !is.na(lat)
+      dplyr::between(salinity, 0, 45), # physical plausibility check
+      !is.na(lon),
+      !is.na(lat)
     )
 
   if (verbose) {
@@ -666,16 +842,153 @@ fetch_wqp_salinity <- function(
     dplyr::group_by(MonitoringLocationIdentifier) |>
     dplyr::summarise(
       salinity_mean = mean(salinity, na.rm = TRUE),
-      salinity_n    = dplyr::n(),
-      lon           = dplyr::first(lon),
-      lat           = dplyr::first(lat),
-      .groups       = "drop"
+      salinity_n = dplyr::n(),
+      lon = dplyr::first(lon),
+      lat = dplyr::first(lat),
+      .groups = "drop"
     ) |>
     sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) |>
     sf::st_transform(crs)
 
-  if (verbose)
+  if (verbose) {
     cat(sprintf("Final spatial layer: %d stations\n", nrow(sal_sf)))
+  }
 
   sal_sf
+}
+
+#' Build a three-class salinity polygon layer from WQP station means
+#'
+#' Fits a thin-plate spline to the long-term mean salinity values returned by
+#' \code{fetch_wqp_salinity()}, predicts onto a fine grid, masks the result to
+#' open water (areas below MLLW in the CUDEM), then reclassifies into three
+#' salinity classes and vectorizes to polygons.
+#'
+#' Classes follow the original TBCMP salinity layer schema:
+#' \itemize{
+#'   \item Class 0 — Fresh (< 0.5 psu)
+#'   \item Class 1 — Oligohaline/Mesohaline (0.5 – 18 psu)
+#'   \item Class 3 — Polyhaline/Euhaline (>= 18 psu)
+#' }
+#'
+#' The 18 psu cutoff follows Eleuterius and Eleuterius (1979).
+#'
+#' @param sal_pts An \code{sf} point layer in any CRS with a \code{salinity_mean}
+#'   column, as returned by \code{fetch_wqp_salinity()}.
+#' @param cudem A \code{SpatRaster} in EPSG:3087 (topobathymetric DEM, NAVD88 m).
+#' @param mllw_surface A \code{SpatRaster} aligned to \code{cudem} containing
+#'   MLLW elevation in meters NAVD88, as returned by \code{build_mllw_surface()}.
+#' @param counties An \code{sf} polygon of the study area in EPSG:3087, used to
+#'   clip the final layer.
+#' @param interp_res Numeric. Prediction grid spacing in decimal degrees.
+#'   Default \code{0.005} (~500 m).
+#' @param crs Integer EPSG code for the output layer. Default \code{3087L}.
+#' @param verbose Logical. Print progress messages. Default \code{TRUE}.
+#'
+#' @return An \code{sf} MULTIPOLYGON in EPSG:3087 with columns \code{Classes}
+#'   (0L, 1L, 3L), \code{Value_Min}, \code{Value_Max}, and \code{Descrip},
+#'   matching the original TBCMP salinity layer schema.
+
+build_salinity_layer <- function(
+  sal_pts,
+  cudem,
+  mllw_surface,
+  counties,
+  interp_res  = 0.005,
+  crs         = 3087L,
+  verbose     = TRUE
+) {
+  # --- project points to 4326 for TPS fitting (lon/lat) --------------------
+
+  pts_4326 <- sf::st_transform(sal_pts, 4326)
+  coords   <- sf::st_coordinates(pts_4326)
+  salinity <- pts_4326$salinity_mean
+
+  keep     <- !is.na(salinity)
+  coords   <- coords[keep, , drop = FALSE]
+  salinity <- salinity[keep]
+
+  if (verbose)
+    cat(sprintf("Fitting TPS to %d stations...\n", nrow(coords)))
+
+  tps_model <- fields::Tps(x = coords, Y = salinity)
+
+  # --- predict onto fine grid ----------------------------------------------
+
+  bbox_4326 <- sf::st_bbox(sf::st_transform(counties, 4326))
+
+  pred_grid <- expand.grid(
+    lon = seq(bbox_4326["xmin"], bbox_4326["xmax"], by = interp_res),
+    lat = seq(bbox_4326["ymin"], bbox_4326["ymax"], by = interp_res)
+  )
+  pred_grid$salinity <- as.numeric(predict(tps_model, as.matrix(pred_grid)))
+
+  if (verbose)
+    cat(sprintf(
+      "Predicted salinity range: %.3f to %.3f psu\n",
+      min(pred_grid$salinity), max(pred_grid$salinity)
+    ))
+
+  sal_rast_4326 <- terra::rast(pred_grid, type = "xyz", crs = "EPSG:4326")
+  sal_rast_3087 <- terra::project(sal_rast_4326, "EPSG:3087", method = "bilinear")
+  sal_rast_3087 <- terra::resample(sal_rast_3087, cudem, method = "bilinear")
+
+  # --- mask to open water (below MLLW in CUDEM) ----------------------------
+
+  if (verbose) cat("Masking to open water (cudem < mllw_surface)...\n")
+
+  open_water <- cudem < mllw_surface
+  open_water[!open_water] <- NA
+  sal_rast_3087 <- terra::mask(sal_rast_3087, open_water)
+
+  # --- reclassify into three classes and vectorize -------------------------
+  # Class 0 = Fresh (<0.5), Class 1 = 0.5-18, Class 3 = >=18
+
+  if (verbose) cat("Reclassifying and vectorizing...\n")
+
+  rcl_matrix <- matrix(c(
+    -Inf, 0.5,  0,
+     0.5, 18,   1,
+     18,  Inf,  3
+  ), ncol = 3, byrow = TRUE)
+
+  rcl_rast <- terra::classify(sal_rast_3087, rcl_matrix)
+
+  # Per-class actual min/max from the continuous salinity raster
+  class_vals <- c(0L, 1L, 3L)
+  descrips   <- c("Fresh (<0.5)", "0.5-18", ">18")
+  breaks_lo  <- c(-Inf, 0.5, 18)
+  breaks_hi  <- c(0.5,  18,  Inf)
+
+  poly_list <- vector("list", 3)
+
+  for (k in seq_along(class_vals)) {
+    class_mask <- terra::ifel(rcl_rast == class_vals[k], 1L, NA)
+    class_sal  <- terra::mask(sal_rast_3087, class_mask)
+    val_min    <- as.numeric(terra::global(class_sal, "min", na.rm = TRUE))
+    val_max    <- as.numeric(terra::global(class_sal, "max", na.rm = TRUE))
+
+    poly_list[[k]] <- terra::as.polygons(class_mask, dissolve = TRUE) |>
+      sf::st_as_sf() |>
+      sf::st_make_valid() |>
+      sf::st_cast("MULTIPOLYGON") |>
+      sf::st_intersection(sf::st_union(counties)) |>
+      sf::st_cast("MULTIPOLYGON") |>
+      dplyr::summarise(geometry = sf::st_union(geometry)) |>
+      dplyr::mutate(
+        Classes   = class_vals[k],
+        Value_Min = val_min,
+        Value_Max = val_max,
+        Descrip   = descrips[k]
+      ) |>
+      dplyr::select(Classes, Value_Min, Value_Max, Descrip)
+  }
+
+  sal_poly <- dplyr::bind_rows(poly_list) |>
+    dplyr::arrange(Classes)
+
+  if (verbose)
+    cat(sprintf("Final layer: %d features\n", nrow(sal_poly)))
+
+  sal_poly
 }
