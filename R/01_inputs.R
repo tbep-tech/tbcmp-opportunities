@@ -314,6 +314,120 @@ leaflet() |>
     options = layersControlOptions(collapsed = FALSE)
   )
 
-# FNAI -------------------------------------------------------------------
+# proposed and conservation lands ----------------------------------------
+
+# All FNAI zips are cached to data-raw/fnai/ so re-runs skip the download.
+# Update the filenames in the URLs when FNAI publishes newer versions.
+
+load(file = here('data', 'tbcmp_cnt.RData'))
+
+# FLMA: Florida Conservation Lands (excludes MacDill AFB)
+flma <- fetch_fnai(
+  url = 'https://www.fnai.org/shapefiles/flma_202503.zip',
+  cnt = tbcmp_cnt
+) |>
+  dplyr::filter(!MANAME %in% 'MacDill Air Force Base')
+
+save(flma, file = here('data', 'flma.RData'), compress = 'xz')
+
+# FFBOT: Future Forever Board of Trustees projects
+ffbot <- fetch_fnai(
+  url = 'https://www.fnai.org/shapefiles/ffbot_202503.zip',
+  cnt = tbcmp_cnt
+)
+
+save(ffbot, file = here('data', 'ffbot.RData'), compress = 'xz')
+
+# FFA: Future Forever acquisitions
+ffa <- fetch_fnai(
+  url = 'https://www.fnai.org/shapefiles/ff_acquired_202502.zip',
+  cnt = tbcmp_cnt
+)
+
+save(ffa, file = here('data', 'ffa.RData'), compress = 'xz')
+
+# Aquatic Preserves: Florida DEP
+# Source: https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0
+
+aqprs <- fetch_aqprs(cnt = tbcmp_cnt)
+
+save(aqprs, file = here('data', 'aqprs.RData'), compress = 'xz')
+
+# CLIP: Critical Lands and Waters Identification Project (FNAI)
+# Source: https://www.fnai.org/services/clip
+# Raster inside File GDB read via GDAL OpenFileGDB driver (requires GDAL >= 3.7).
+# Values 1-5; 1 = highest priority. Zip removed after processing.
+
+load(file = here('data', 'tbcmp_cnt.RData'))
+
+clip <- fetch_clip(cnt = tbcmp_cnt)
+
+save(clip, file = here('data', 'clip.RData'), compress = 'xz')
+
+# compare to existing TB CLIP layer
+load(file = here('data', 'clip.RData'))
+clip_old <- sf::st_read(
+  'https://opendata.arcgis.com/datasets/ba464bae7a1144f09522b459d297d1ef_10.geojson'
+) |>
+  sf::st_transform(4326) |>
+  st_make_valid() |>
+  dplyr::group_by(gridcode) |>
+  dplyr::summarise(geometry = sf::st_union(geometry), .groups = 'drop') |>
+  dplyr::rename(priority = gridcode)
+
+clip_4326 <- clip |>
+  dplyr::filter(priority >= 1) |>
+  sf::st_transform(4326)
+
+clip_pal <- colorFactor(
+  palette = c('#006837', '#78c679', '#d9f0a3'),
+  domain = 1:3
+)
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    data = clip_4326,
+    fillColor = ~ clip_pal(priority),
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    label = ~ paste('Priority', priority),
+    group = 'CLIP v4 (TBCMP)'
+  ) |>
+  addPolygons(
+    data = clip_old,
+    fillOpacity = 0,
+    color = '#000000',
+    weight = 2,
+    dashArray = '6 4',
+    group = 'Existing TB CLIP'
+  ) |>
+  addLegend(
+    pal = clip_pal,
+    values = 1:3,
+    title = 'CLIP Priority',
+    position = 'bottomright',
+    labFormat = labelFormat(prefix = 'Priority ')
+  ) |>
+  addLayersControl(
+    overlayGroups = c('CLIP v4 (TBCMP)', 'Existing TB CLIP'),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+# proposed and existing conservation lands --------------------------------
+
+load(file = here('data', 'flma.RData'))
+load(file = here('data', 'ffbot.RData'))
+load(file = here('data', 'ffa.RData'))
+load(file = here('data', 'aqprs.RData'))
+load(file = here('data', 'clip.RData'))
+
+out <- build_prop_exst(flma, ffbot, ffa, aqprs, clip)
+prop <- out$prop
+exst <- out$exst
+
+save(prop, file = here('data', 'prop.RData'), compress = 'xz')
+save(exst, file = here('data', 'exst.RData'), compress = 'xz')
 
 # LULC -------------------------------------------------------------------

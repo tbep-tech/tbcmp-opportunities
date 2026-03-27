@@ -1006,3 +1006,302 @@ build_salinity_layer <- function(
 
   sal_poly
 }
+
+#' Download and clip an FNAI zipped GDB layer to the study area
+#'
+#' Downloads a zipped File Geodatabase from the FNAI website (or any compatible
+#' URL), extracts it, reads the first layer, reprojects, fixes geometries, and
+#' clips to the study area boundary. The zip is cached in \code{cache_dir} so
+#' subsequent calls skip the download.
+#'
+#' @param url Character. Direct URL to the FNAI zip file.
+#' @param cnt An \code{sf} polygon of the study area used to clip the
+#'   output.
+#' @param cache_dir Character. Directory for the cached zip. Created if it does
+#'   not exist. Defaults to \code{data-raw/fnai} in the project root.
+#' @param crs Integer EPSG code for the output CRS. Default \code{3087L}.
+#' @param verbose Logical. Print progress messages. Default \code{TRUE}.
+#'
+#' @return An \code{sf} object clipped to \code{cnt} in \code{crs}.
+
+fetch_fnai <- function(
+  url,
+  cnt,
+  cache_dir = here::here("data-raw", "fnai"),
+  crs = 3087L,
+  verbose = TRUE
+) {
+  if (!dir.exists(cache_dir)) {
+    dir.create(cache_dir, recursive = TRUE)
+  }
+
+  zip_path <- file.path(cache_dir, basename(url))
+
+  if (file.exists(zip_path)) {
+    if (verbose) cat(sprintf("  Using cached: %s\n", basename(url)))
+  } else {
+    if (verbose) {
+      cat(sprintf("  Downloading: %s\n", basename(url)))
+    }
+    resp <- httr2::request(url) |>
+      httr2::req_timeout(600) |>
+      httr2::req_retry(max_tries = 3, backoff = ~30) |>
+      httr2::req_perform()
+    writeBin(httr2::resp_body_raw(resp), zip_path)
+    if (verbose) {
+      cat(sprintf("  Saved (%.1f MB)\n", file.size(zip_path) / 1e6))
+    }
+  }
+
+  tmp_dir <- tempfile()
+  on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE))
+  utils::unzip(zip_path, exdir = tmp_dir)
+
+  # prefer GDB, fall back to shapefile
+  gdb <- list.files(
+    tmp_dir,
+    pattern = "\\.gdb$",
+    full.names = TRUE,
+    recursive = TRUE,
+    include.dirs = TRUE
+  )
+  if (length(gdb)) {
+    layer <- sf::st_layers(gdb[1])$name[1]
+    tmp_gpkg <- tempfile(fileext = ".gpkg")
+    sf::gdal_utils(
+      util = "vectortranslate",
+      source = gdb[1],
+      destination = tmp_gpkg,
+      options = c("-nlt", "CONVERT_TO_LINEAR", "-nlt", "PROMOTE_TO_MULTI", "-f", "GPKG", "-lco", "SPATIAL_INDEX=NO")
+    )
+    out <- sf::st_read(tmp_gpkg, quiet = !verbose)
+  } else {
+    shp <- list.files(
+      tmp_dir,
+      pattern = "\\.shp$",
+      full.names = TRUE,
+      recursive = TRUE
+    )
+    if (!length(shp)) {
+      stop("No .gdb or .shp found in zip: ", basename(url))
+    }
+    out <- sf::st_read(shp[1], quiet = !verbose)
+  }
+
+  out |>
+    sf::st_zm(drop = TRUE) |>
+    sf::st_transform(crs) |>
+    sf::st_make_valid() |>
+    sf::st_buffer(dist = 0) |>
+    sf::st_intersection(sf::st_union(cnt)) |>
+    sf::st_make_valid()
+}
+
+#' Fetch Florida DEP Aquatic Preserves clipped to a county boundary
+#'
+#' Downloads the statewide Aquatic Preserves GeoJSON from the Florida DEP
+#' ArcGIS service, routes it through \code{gdal_utils} vectortranslate to
+#' linearize any curve geometries, then clips to \code{cnt}.
+#'
+#' @param cnt An \code{sf} object defining the clipping boundary.
+#' @param url Character. GeoJSON endpoint URL.
+#' @param crs Integer EPSG code for the output CRS. Default \code{3087L}.
+#'
+#' @return An \code{sf} object clipped to \code{cnt} in \code{crs}.
+
+fetch_aqprs <- function(
+  cnt,
+  url = 'https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0.geojson',
+  crs = 3087L
+) {
+  tmp <- tempfile(fileext = '.gpkg')
+  on.exit(unlink(tmp), add = TRUE)
+
+  sf::gdal_utils(
+    util = 'vectortranslate',
+    source = url,
+    destination = tmp,
+    options = c(
+      '-nlt', 'PROMOTE_TO_MULTI',
+      '-nlt', 'CONVERT_TO_LINEAR',
+      '-f', 'GPKG',
+      '-lco', 'SPATIAL_INDEX=NO'
+    )
+  )
+
+  sf::st_read(tmp, quiet = TRUE) |>
+    sf::st_transform(crs) |>
+    sf::st_make_valid() |>
+    sf::st_buffer(dist = 0) |>
+    sf::st_intersection(sf::st_union(cnt)) |>
+    sf::st_make_valid()
+}
+
+#' Fetch FNAI CLIP priorities raster and vector clipped to a county boundary
+#'
+#' Downloads the CLIP v4 zip from FNAI, extracts the priorities GDB, reads the
+#' \code{CLIPprio_v4} raster via the GDAL OpenFileGDB raster driver (requires
+#' GDAL >= 3.7), filters to the requested priority levels, masks to \code{cnt},
+#' and polygonises the result. The zip is deleted after processing.
+#'
+#' @param cnt An \code{sf} object defining the clipping/masking boundary.
+#' @param url Character. URL to the CLIP v4 zip file.
+#' @param max_priority Integer. Retain priorities 1 through this value. Default \code{3L}.
+#' @param crs Integer EPSG code for the output CRS. Default \code{3087L}.
+#' @param cache_dir Character. Directory for the downloaded zip. Default
+#'   \code{here::here("data-raw", "fnai")}.
+#' @param verbose Logical. Print progress messages. Default \code{TRUE}.
+#'
+#' @return An \code{sf} polygon object in \code{crs}.
+
+fetch_clip <- function(
+  cnt,
+  url = 'https://www.fnai.org/shapefiles/CLIP_v4_02.zip',
+  max_priority = 3L,
+  crs = 3087L,
+  cache_dir = here::here('data-raw', 'fnai'),
+  verbose = TRUE
+) {
+  if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+
+  zip_path <- file.path(cache_dir, basename(url))
+
+  if (verbose) cat('Downloading CLIP zip...\n')
+  resp <- httr2::request(url) |>
+    httr2::req_timeout(1800) |>
+    httr2::req_retry(max_tries = 3, backoff = ~60) |>
+    httr2::req_perform()
+  writeBin(httr2::resp_body_raw(resp), zip_path)
+  if (verbose) cat(sprintf('  Saved (%.0f MB)\n', file.size(zip_path) / 1e6))
+
+  tmp_dir <- tempfile()
+  on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  utils::unzip(zip_path, exdir = tmp_dir)
+
+  clip_gdb <- list.files(
+    tmp_dir,
+    pattern = 'priorities\\.gdb$',
+    full.names = TRUE,
+    recursive = TRUE,
+    include.dirs = TRUE
+  )
+  if (!length(clip_gdb)) stop('No priorities.gdb found in CLIP zip')
+
+  r <- terra::rast(paste0('OpenFileGDB:"', clip_gdb[1], '":CLIPprio_v4'))
+  r <- terra::project(r, paste0('EPSG:', crs))
+  r[r < 1 | r > max_priority] <- NA
+  r <- terra::mask(r, terra::vect(cnt))
+
+  v <- terra::as.polygons(r) |>
+    sf::st_as_sf() |>
+    sf::st_make_valid()
+
+  names(v)[1] <- 'priority'
+  v <- v[v$priority >= 1, ]
+  v$label <- paste('Priority', v$priority)
+
+  # Remove the large zip now that polygons are built
+  unlink(zip_path)
+  if (verbose) cat('  CLIP zip removed\n')
+
+  v
+}
+
+#' Build proposed and existing conservation land layers
+#'
+#' Combines the individual FNAI/DEP conservation layers into unified existing
+#' (\code{exst}) and proposed (\code{prop}) conservation geometries, then
+#' corrects overlap so that any area already in \code{exst} is removed from
+#' \code{prop}.
+#'
+#' Existing conservation (\code{exst}) is the union of:
+#' \itemize{
+#'   \item \code{flma}  – Florida Conservation Lands
+#'   \item \code{ffbot} – Future Forever Board of Trustees projects
+#'   \item \code{ffa}   – Future Forever acquisitions
+#'   \item \code{aqprs} – Florida DEP Aquatic Preserves
+#'   \item \code{exstorig} – original TB existing conservation layer downloaded
+#'     from the TBEP open data portal
+#' }
+#'
+#' Proposed conservation (\code{prop}) is the union of \code{clip} (CLIP v4
+#' priorities 1–3), with any overlap with \code{exst} moved into \code{exst}.
+#'
+#' @param flma  \code{sf} object. Florida Conservation Lands.
+#' @param ffbot \code{sf} object. Future Forever Board of Trustees projects.
+#' @param ffa   \code{sf} object. Future Forever acquisitions.
+#' @param aqprs \code{sf} object. Florida DEP Aquatic Preserves.
+#' @param clip  \code{sf} object. CLIP v4 priority polygons (priorities 1–3).
+#' @param exstorig_url Character. URL to the original TB existing conservation
+#'   GeoJSON layer.
+#' @param crs Integer EPSG code for all outputs. Default \code{3087L}.
+#'
+#' @return A named list with elements \code{prop} and \code{exst}, each an
+#'   \code{sfc_POLYGON} geometry set in \code{crs}.
+
+build_prop_exst <- function(
+  flma,
+  ffbot,
+  ffa,
+  aqprs,
+  clip,
+  exstorig_url = 'https://opendata.arcgis.com/datasets/e977c851f6dc49c48d0729b3cd30cc92_3.geojson',
+  crs = 3087L
+) {
+
+  # --- existing conservation -----------------------------------------------
+
+  exst <- sf::st_geometry(flma) |>
+    sf::st_union() |>
+    sf::st_union(sf::st_union(sf::st_geometry(ffbot))) |>
+    sf::st_union(sf::st_union(sf::st_geometry(ffa))) |>
+    sf::st_union(sf::st_union(sf::st_geometry(aqprs))) |>
+    sf::st_buffer(dist = 0)
+
+  # original TB existing conservation layer (routed through gdal_utils to
+  # handle any curve geometry in the GeoJSON source)
+  exstorig_tmp <- tempfile(fileext = '.gpkg')
+  on.exit(unlink(exstorig_tmp), add = TRUE)
+  sf::gdal_utils(
+    util = 'vectortranslate',
+    source = exstorig_url,
+    destination = exstorig_tmp,
+    options = c(
+      '-nlt', 'PROMOTE_TO_MULTI',
+      '-nlt', 'CONVERT_TO_LINEAR',
+      '-f', 'GPKG',
+      '-lco', 'SPATIAL_INDEX=NO'
+    )
+  )
+  exstorig <- sf::st_read(exstorig_tmp, quiet = TRUE) |>
+    sf::st_transform(crs) |>
+    sf::st_union() |>
+    sf::st_buffer(dist = 0)
+
+  exst <- sf::st_union(exst, exstorig) |>
+    sf::st_cast('POLYGON') |>
+    sf::st_union() |>
+    sf::st_buffer(dist = 0)
+
+  # --- proposed conservation -----------------------------------------------
+
+  prop <- sf::st_geometry(clip) |>
+    sf::st_union() |>
+    sf::st_buffer(dist = 0)
+
+  # --- correct overlap: anything proposed that overlaps existing -> existing -
+
+  a <- sf::st_set_precision(exst, 1e5)
+  b <- sf::st_set_precision(prop, 1e5)
+
+  op1 <- sf::st_difference(a, b)    # existing not in proposed
+  op2 <- sf::st_difference(b, a)    # proposed not in existing
+  op3 <- sf::st_intersection(a, b)  # overlap -> moves to existing
+
+  prop <- sf::st_cast(op2, 'POLYGON')
+  exst <- sf::st_union(op1, op3) |>
+    sf::st_geometry() |>
+    sf::st_cast('POLYGON')
+
+  list(prop = prop, exst = exst)
+}

@@ -17,7 +17,18 @@
       "WebFetch(domain:www.epa.gov)",
       "WebFetch(domain:doi-usgs.github.io)",
       "WebFetch(domain:www3.epa.gov)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.fnai.org)",
+      "Bash(Rscript -e \"sf::gdal_utils\\('ogrinfo', source = 'C:/Users/mbeck/AppData/Local/Temp/RtmpcJPiQ4/file101807083bfc/CLIP_v4_02/CLIP_v4_coredata.gdb'\\)\")",
+      "Bash(\"C:/Program Files/R/R-4.5.0/bin/Rscript.exe\" -e \"suppressMessages\\(library\\(sf\\)\\); sf::gdal_utils\\('ogrinfo', source = 'C:/Users/mbeck/AppData/Local/Temp/RtmpcJPiQ4/file101807083bfc/CLIP_v4_02/CLIP_v4_coredata.gdb'\\)\" 2>&1)",
+      "Bash(\"C:/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"suppressMessages\\(library\\(sf\\)\\); sf::gdal_utils\\('ogrinfo', source = 'C:/Users/mbeck/AppData/Local/Temp/RtmpcJPiQ4/file101807083bfc/CLIP_v4_02/CLIP_v4_coredata.gdb'\\)\" 2>&1)",
+      "Bash(grep -iv \"^[a-f0-9]*$\")",
+      "Bash(\"C:/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"suppressMessages\\(library\\(sf\\)\\); cat\\(sf::gdal_version\\(\\)\\)\")",
+      "Bash(\"C:/Program Files/R/R-4.3.2/bin/Rscript.exe\" -e \"suppressMessages\\(library\\(sf\\)\\); print\\(sf::sf_extSoftVersion\\(\\)\\)\")",
+      "WebFetch(domain:sagittarius.at.geoplan.ufl.edu)",
+      "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/FNAI?f=json\")",
+      "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/UF_CLCP?f=json\")",
+      "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/CLCP_SL20402070?f=json\")"
     ]
   }
 }
