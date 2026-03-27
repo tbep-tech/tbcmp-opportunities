@@ -875,9 +875,6 @@ fetch_wqp_salinity <- function(
 #'
 #' @param sal_pts An \code{sf} point layer in any CRS with a \code{salinity_mean}
 #'   column, as returned by \code{fetch_wqp_salinity()}.
-#' @param cudem A \code{SpatRaster} in EPSG:3087 (topobathymetric DEM, NAVD88 m).
-#' @param mllw_surface A \code{SpatRaster} aligned to \code{cudem} containing
-#'   MLLW elevation in meters NAVD88, as returned by \code{build_mllw_surface()}.
 #' @param counties An \code{sf} polygon of the study area in EPSG:3087, used to
 #'   clip the final layer.
 #' @param interp_res Numeric. Prediction grid spacing in decimal degrees.
@@ -891,10 +888,8 @@ fetch_wqp_salinity <- function(
 
 build_salinity_layer <- function(
   sal_pts,
-  cudem,
-  mllw_surface,
   counties,
-  interp_res  = 0.005,
+  interp_res  = 0.001,
   crs         = 3087L,
   verbose     = TRUE
 ) {
@@ -921,7 +916,7 @@ build_salinity_layer <- function(
     lon = seq(bbox_4326["xmin"], bbox_4326["xmax"], by = interp_res),
     lat = seq(bbox_4326["ymin"], bbox_4326["ymax"], by = interp_res)
   )
-  pred_grid$salinity <- as.numeric(predict(tps_model, as.matrix(pred_grid)))
+  pred_grid$salinity <- pmax(0, as.numeric(predict(tps_model, as.matrix(pred_grid))))
 
   if (verbose)
     cat(sprintf(
@@ -931,15 +926,6 @@ build_salinity_layer <- function(
 
   sal_rast_4326 <- terra::rast(pred_grid, type = "xyz", crs = "EPSG:4326")
   sal_rast_3087 <- terra::project(sal_rast_4326, "EPSG:3087", method = "bilinear")
-  sal_rast_3087 <- terra::resample(sal_rast_3087, cudem, method = "bilinear")
-
-  # --- mask to open water (below MLLW in CUDEM) ----------------------------
-
-  if (verbose) cat("Masking to open water (cudem < mllw_surface)...\n")
-
-  open_water <- cudem < mllw_surface
-  open_water[!open_water] <- NA
-  sal_rast_3087 <- terra::mask(sal_rast_3087, open_water)
 
   # --- reclassify into three classes and vectorize -------------------------
   # Class 0 = Fresh (<0.5), Class 1 = 0.5-18, Class 3 = >=18

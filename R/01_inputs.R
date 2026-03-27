@@ -180,18 +180,20 @@ leaflet() |>
 load(file = here('data', 'tbcmp_cnt.RData'))
 
 wqp_salinity <- fetch_wqp_salinity(
-  counties  = tbcmp_cnt,
+  counties = tbcmp_cnt,
   by_county = TRUE
 )
 
 salinity_layer <- build_salinity_layer(
-  sal_pts      = wqp_salinity,
-  cudem        = cudem,
-  mllw_surface = mllw_surface,
-  counties     = tbcmp_cnt
+  sal_pts = wqp_salinity,
+  counties = tbcmp_cnt
 )
 
-save(salinity_layer, file = here('data', 'salinity_layer.RData'), compress = 'xz')
+save(
+  salinity_layer,
+  file = here('data', 'salinity_layer.RData'),
+  compress = 'xz'
+)
 
 tomap <- wqp_salinity |>
   st_transform(4326)
@@ -203,6 +205,44 @@ leaflet(tomap) |>
     radius = 4,
     fillOpacity = 0.7,
     label = ~ paste0('Salinity: ', round(salinity_mean, 2))
+  )
+
+# map salinity_layer
+load(file = here('data', 'salinity_layer.RData'))
+
+salinity_layer_4326 <- st_transform(salinity_layer, 4326)
+
+leaflet(salinity_layer_4326) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    fillOpacity = 0.7,
+    weight = 0.5
+  )
+
+# compare to original TB salinity layer
+load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/salin.RData')
+
+salin_4326 <- st_transform(salin, 4326)
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    data = salin_4326,
+    fillOpacity = 0.7,
+    weight = 0.5,
+    color = 'blue',
+    group = 'Original TB Salinity'
+  ) |>
+  addPolygons(
+    data = salinity_layer_4326,
+    fillOpacity = 0.7,
+    weight = 0.5,
+    color = 'red',
+    group = 'Interpolated Salinity'
+  ) |>
+  addLayersControl(
+    overlayGroups = c('Original TB Salinity', 'Interpolated Salinity'),
+    options = layersControlOptions(collapsed = FALSE)
   )
 
 # soils ------------------------------------------------------------------
