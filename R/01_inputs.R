@@ -9,6 +9,8 @@ library(httr2)
 library(fields)
 library(leaflet)
 library(soilDB)
+library(smoothr)
+library(rmapshaper)
 
 source(here('R/funcs.R'))
 
@@ -179,14 +181,9 @@ leaflet() |>
 # Load county boundaries
 load(file = here('data', 'tbcmp_cnt.RData'))
 
-wqp_salinity <- fetch_wqp_salinity(
+salinity_layer <- build_salinity_layer(
   counties = tbcmp_cnt,
   by_county = TRUE
-)
-
-salinity_layer <- build_salinity_layer(
-  sal_pts = wqp_salinity,
-  counties = tbcmp_cnt
 )
 
 save(
@@ -195,53 +192,44 @@ save(
   compress = 'xz'
 )
 
-tomap <- wqp_salinity |>
-  st_transform(4326)
-
-leaflet(tomap) |>
-  addProviderTiles(providers$CartoDB.Positron) |>
-  addCircleMarkers(
-    color = ~ ifelse(salinity_mean < 5, 'blue', 'red'),
-    radius = 4,
-    fillOpacity = 0.7,
-    label = ~ paste0('Salinity: ', round(salinity_mean, 2))
-  )
-
-# map salinity_layer
-load(file = here('data', 'salinity_layer.RData'))
-
-salinity_layer_4326 <- st_transform(salinity_layer, 4326)
-
-leaflet(salinity_layer_4326) |>
-  addProviderTiles(providers$CartoDB.Positron) |>
-  addPolygons(
-    fillOpacity = 0.7,
-    weight = 0.5
-  )
-
 # compare to original TB salinity layer
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/salin.RData')
 
+salinity_layer_4326 <- st_transform(salinity_layer, 4326)
 salin_4326 <- st_transform(salin, 4326)
+
+sal_pal <- colorFactor(
+  palette = c('#2166ac', '#74c476', '#d73027'), # blue / green / red
+  domain = c('Fresh (<0.5)', '0.5-18', '>18')
+)
 
 leaflet() |>
   addProviderTiles(providers$CartoDB.Positron) |>
   addPolygons(
-    data = salin_4326,
-    fillOpacity = 0.7,
-    weight = 0.5,
-    color = 'blue',
-    group = 'Original TB Salinity'
-  ) |>
-  addPolygons(
     data = salinity_layer_4326,
-    fillOpacity = 0.7,
+    fillColor = ~ sal_pal(Descrip),
+    fillOpacity = 0.6,
+    color = '#555555',
     weight = 0.5,
-    color = 'red',
+    label = ~Descrip,
     group = 'Interpolated Salinity'
   ) |>
+  addPolygons(
+    data = salin_4326,
+    fillOpacity = 0,
+    color = '#000000',
+    weight = 2.5,
+    dashArray = '6 4',
+    group = 'Original TB Salinity'
+  ) |>
+  addLegend(
+    pal = sal_pal,
+    values = c('Fresh (<0.5)', '0.5-18', '>18'),
+    title = 'Salinity zone<br>(Interpolated)',
+    position = 'bottomright'
+  ) |>
   addLayersControl(
-    overlayGroups = c('Original TB Salinity', 'Interpolated Salinity'),
+    overlayGroups = c('Interpolated Salinity', 'Original TB Salinity'),
     options = layersControlOptions(collapsed = FALSE)
   )
 

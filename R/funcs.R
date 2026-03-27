@@ -687,51 +687,91 @@ wqp_read_zip_csv <- function(zip_path, col_select, cache_dir) {
   dplyr::select(df, dplyr::any_of(col_select))
 }
 
-#' Fetch salinity observations from the USEPA Water Quality Portal
+#' Fetch WQP salinity data and build a three-class salinity polygon layer
 #'
-#' Queries the WQP Result and Station endpoints for salinity measurements within
-#' the bounding box of \code{counties} (default) or county by county using WQP
-#' county codes (\code{by_county = TRUE}). Downloads are cached to \code{cache_dir}
-#' so re-running skips completed chunks. Returns long-term mean salinity per
-#' station as an \code{sf} point layer.
+#' Queries the USEPA Water Quality Portal for salinity measurements within
+#' \code{counties}, computes long-term mean salinity per station, fits a
+#' thin-plate spline to interpolate across the study area, reclassifies into
+#' three salinity zones, and returns a smoothed polygon layer. Set
+#' \code{return_raw = TRUE} to skip interpolation and return the station point
+#' layer instead.
 #'
-#' Units "psu", "PSU", "ppt", and "ppth" are treated as equivalent (~1:1 at
-#' estuarine salinities) and pooled before computing station means.
+#' Salinity classes follow the original TBCMP schema:
+#' \itemize{
+#'   \item Class 0 — Fresh (< 0.5 psu)
+#'   \item Class 1 — Oligohaline/Mesohaline (0.5–18 psu)
+#'   \item Class 3 — Polyhaline/Euhaline (>= 18 psu)
+#' }
 #'
-#' @param counties An \code{sf} polygon of the study area. Must have a \code{county}
-#'   column when \code{by_county = TRUE}.
+#' The 18 psu cutoff follows Eleuterius and Eleuterius (1979). Units "psu",
+#' "PSU", "ppt", and "ppth" are treated as equivalent (~1:1 at estuarine
+#' salinities) and pooled before computing station means.
+#'
+#' @param counties An \code{sf} polygon of the study area. Must have a
+#'   \code{county} column when \code{by_county = TRUE}.
 #' @param start_date Character. Query start date in \code{"MM-DD-YYYY"} format.
-#'   Defaults to five years before today.
 #' @param end_date Character. Query end date in \code{"MM-DD-YYYY"} format.
-#'   Defaults to today.
 #' @param char_names Character vector. WQP characteristic names to request.
-#'   Default \code{c("Salinity", "Salinity, water")}.
+#'   Default \code{"Salinity"}.
 #' @param valid_units Character vector. Unit codes to retain (case-insensitive).
 #'   Default \code{c("psu", "PSU", "ppt", "ppth")}.
-#' @param by_county Logical. If \code{FALSE} (default), issues a single bounding-box
-#'   query. If \code{TRUE}, loops over counties using WQP \code{countycode} parameters
-#'   — use this if the full-extent download is too large or times out.
-#' @param cache_dir Character. Directory for cached zip downloads. Created if it
-#'   does not exist. Defaults to \code{data-raw/wqp_cache} in the project root.
+#' @param by_county Logical. If \code{FALSE} (default), issues a single
+#'   bounding-box query. If \code{TRUE}, loops over counties using WQP
+#'   \code{countycode} parameters — use this if the full-extent download is
+#'   too large or times out.
+#' @param cache_dir Character. Directory for cached zip downloads. Created if
+#'   it does not exist. Defaults to \code{data-raw/wqp_cache} in the project
+#'   root.
+#' @param interp_res Numeric. TPS prediction grid spacing in decimal degrees.
+#'   Default \code{0.001} (~100 m). Coarser values (e.g. \code{0.005}) reduce
+#'   processing time; \code{smooth = TRUE} compensates for the resulting
+#'   blockiness.
+#' @param smooth Logical. If \code{TRUE} (default), applies topology-aware
+#'   polygon simplification via \code{rmapshaper::ms_simplify()} after
+#'   vectorization to remove raster staircase artifacts.
+#' @param simplify_keep Numeric (0–1). Fraction of vertices to retain during
+#'   simplification. Lower values produce smoother polygons. Default
+#'   \code{0.05}. Ignored when \code{smooth = FALSE}.
+#' @param return_raw Logical. If \code{TRUE}, returns the station \code{sf}
+#'   point layer (with \code{salinity_mean} and \code{salinity_n}) instead of
+#'   building the polygon layer. Default \code{FALSE}.
 #' @param crs Integer EPSG code for the output CRS. Default \code{3087}.
 #' @param verbose Logical. Print progress messages. Default \code{TRUE}.
 #'
-#' @return An \code{sf} point layer in \code{crs} with columns
-#'   \code{MonitoringLocationIdentifier}, \code{salinity_mean} (mean PSU/PPT
-#'   across the query period), and \code{salinity_n} (observation count).
+#' @return When \code{return_raw = FALSE} (default), an \code{sf} MULTIPOLYGON
+#'   in \code{crs} with columns \code{Classes} (0L, 1L, 3L),
+#'   \code{Value_Min}, \code{Value_Max}, and \code{Descrip}. When
+#'   \code{return_raw = TRUE}, an \code{sf} point layer with columns
+#'   \code{MonitoringLocationIdentifier}, \code{salinity_mean}, and
+#'   \code{salinity_n}.
 
-fetch_wqp_salinity <- function(
+build_salinity_layer <- function(
   counties,
-  start_date = format(Sys.Date() - round(5 * 365.25), "%m-%d-%Y"),
-  end_date = format(Sys.Date(), "%m-%d-%Y"),
+  start_date = '01-01-2016',
+  end_date = '12-31-2025',
   char_names = "Salinity",
   valid_units = c("psu", "PSU", "ppt", "ppth"),
   by_county = FALSE,
   cache_dir = here::here("data-raw", "wqp_cache"),
+  interp_res = 0.001,
+  smooth = TRUE,
+  simplify_keep = 0.05,
+  return_raw = FALSE,
   crs = 3087L,
   verbose = TRUE
 ) {
-  # WQP county codes for the seven TBCMP counties (Florida state FIPS = 12)
+  # --- validate date format (WQP requires MM-DD-YYYY) ----------------------
+
+  date_rx <- "^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-[0-9]{4}$"
+  if (!grepl(date_rx, start_date)) {
+    stop("start_date must be in MM-DD-YYYY format (got: '", start_date, "')")
+  }
+  if (!grepl(date_rx, end_date)) {
+    stop("end_date must be in MM-DD-YYYY format (got: '", end_date, "')")
+  }
+
+  # --- fetch WQP salinity data ---------------------------------------------
+
   county_fips <- c(
     Citrus = "US:12:017",
     Hernando = "US:12:053",
@@ -747,10 +787,6 @@ fetch_wqp_salinity <- function(
   }
 
   counties_4326 <- sf::st_transform(counties, 4326)
-
-  # --- build download chunks -----------------------------------------------
-  # Each chunk is a named character vector: names = labels, values = spatial
-  # parameter values. param_type selects the WQP query parameter name.
 
   if (by_county) {
     if (!"county" %in% names(counties)) {
@@ -772,8 +808,6 @@ fetch_wqp_salinity <- function(
     )
     param_type <- "bBox"
   }
-
-  # --- download loop -------------------------------------------------------
 
   result_list <- vector("list", length(chunks))
 
@@ -813,8 +847,6 @@ fetch_wqp_salinity <- function(
     }
   }
 
-  # --- combine and clean ---------------------------------------------------
-
   results <- dplyr::bind_rows(result_list) |>
     dplyr::mutate(
       salinity = suppressWarnings(as.numeric(ResultMeasureValue)),
@@ -825,7 +857,7 @@ fetch_wqp_salinity <- function(
     dplyr::filter(
       unit %in% tolower(valid_units),
       !is.na(salinity),
-      dplyr::between(salinity, 0, 45), # physical plausibility check
+      dplyr::between(salinity, 0, 45),
       !is.na(lon),
       !is.na(lat)
     )
@@ -836,9 +868,7 @@ fetch_wqp_salinity <- function(
     print(dplyr::count(results, unit, sort = TRUE))
   }
 
-  # --- mean per station, return sf -----------------------------------------
-
-  sal_sf <- results |>
+  sal_pts <- results |>
     dplyr::group_by(MonitoringLocationIdentifier) |>
     dplyr::summarise(
       salinity_mean = mean(salinity, na.rm = TRUE),
@@ -851,64 +881,24 @@ fetch_wqp_salinity <- function(
     sf::st_transform(crs)
 
   if (verbose) {
-    cat(sprintf("Final spatial layer: %d stations\n", nrow(sal_sf)))
+    cat(sprintf("Station layer: %d stations\n", nrow(sal_pts)))
   }
 
-  sal_sf
-}
+  if (return_raw) {
+    return(sal_pts)
+  }
 
-#' Build a three-class salinity polygon layer from WQP station means
-#'
-#' Fits a thin-plate spline to the long-term mean salinity values returned by
-#' \code{fetch_wqp_salinity()}, predicts onto a fine grid, masks the result to
-#' open water (areas below MLLW in the CUDEM), then reclassifies into three
-#' salinity classes and vectorizes to polygons.
-#'
-#' Classes follow the original TBCMP salinity layer schema:
-#' \itemize{
-#'   \item Class 0 — Fresh (< 0.5 psu)
-#'   \item Class 1 — Oligohaline/Mesohaline (0.5 – 18 psu)
-#'   \item Class 3 — Polyhaline/Euhaline (>= 18 psu)
-#' }
-#'
-#' The 18 psu cutoff follows Eleuterius and Eleuterius (1979).
-#'
-#' @param sal_pts An \code{sf} point layer in any CRS with a \code{salinity_mean}
-#'   column, as returned by \code{fetch_wqp_salinity()}.
-#' @param counties An \code{sf} polygon of the study area in EPSG:3087, used to
-#'   clip the final layer.
-#' @param interp_res Numeric. Prediction grid spacing in decimal degrees.
-#'   Default \code{0.005} (~500 m).
-#' @param crs Integer EPSG code for the output layer. Default \code{3087L}.
-#' @param verbose Logical. Print progress messages. Default \code{TRUE}.
-#'
-#' @return An \code{sf} MULTIPOLYGON in EPSG:3087 with columns \code{Classes}
-#'   (0L, 1L, 3L), \code{Value_Min}, \code{Value_Max}, and \code{Descrip},
-#'   matching the original TBCMP salinity layer schema.
-
-build_salinity_layer <- function(
-  sal_pts,
-  counties,
-  interp_res  = 0.001,
-  crs         = 3087L,
-  verbose     = TRUE
-) {
   # --- project points to 4326 for TPS fitting (lon/lat) --------------------
 
   pts_4326 <- sf::st_transform(sal_pts, 4326)
-  coords   <- sf::st_coordinates(pts_4326)
+  coords <- sf::st_coordinates(pts_4326)
   salinity <- pts_4326$salinity_mean
 
-  keep     <- !is.na(salinity)
-  coords   <- coords[keep, , drop = FALSE]
+  keep <- !is.na(salinity)
+  coords <- coords[keep, , drop = FALSE]
   salinity <- salinity[keep]
 
-  if (verbose)
-    cat(sprintf("Fitting TPS to %d stations...\n", nrow(coords)))
-
-  tps_model <- fields::Tps(x = coords, Y = salinity)
-
-  # --- predict onto fine grid ----------------------------------------------
+  # --- prediction grid -----------------------------------------------------
 
   bbox_4326 <- sf::st_bbox(sf::st_transform(counties, 4326))
 
@@ -916,43 +906,67 @@ build_salinity_layer <- function(
     lon = seq(bbox_4326["xmin"], bbox_4326["xmax"], by = interp_res),
     lat = seq(bbox_4326["ymin"], bbox_4326["ymax"], by = interp_res)
   )
-  pred_grid$salinity <- pmax(0, as.numeric(predict(tps_model, as.matrix(pred_grid))))
 
-  if (verbose)
+  # --- interpolate via TPS -------------------------------------------------
+
+  if (verbose) {
+    cat(sprintf("Fitting TPS to %d stations...\n", nrow(coords)))
+  }
+
+  tps_model <- fields::Tps(x = coords, Y = salinity)
+  pred_grid$salinity <- pmax(
+    0,
+    as.numeric(predict(tps_model, as.matrix(pred_grid)))
+  )
+
+  if (verbose) {
     cat(sprintf(
       "Predicted salinity range: %.3f to %.3f psu\n",
-      min(pred_grid$salinity), max(pred_grid$salinity)
+      min(pred_grid$salinity),
+      max(pred_grid$salinity)
     ))
+  }
 
   sal_rast_4326 <- terra::rast(pred_grid, type = "xyz", crs = "EPSG:4326")
-  sal_rast_3087 <- terra::project(sal_rast_4326, "EPSG:3087", method = "bilinear")
+  sal_rast_3087 <- terra::project(
+    sal_rast_4326,
+    "EPSG:3087",
+    method = "bilinear"
+  )
 
   # --- reclassify into three classes and vectorize -------------------------
   # Class 0 = Fresh (<0.5), Class 1 = 0.5-18, Class 3 = >=18
 
-  if (verbose) cat("Reclassifying and vectorizing...\n")
+  if (verbose) {
+    cat("Reclassifying and vectorizing...\n")
+  }
 
-  rcl_matrix <- matrix(c(
-    -Inf, 0.5,  0,
-     0.5, 18,   1,
-     18,  Inf,  3
-  ), ncol = 3, byrow = TRUE)
+  rcl_matrix <- matrix(
+    c(
+      -Inf,
+      0.5,
+      0,
+      0.5,
+      18,
+      1,
+      18,
+      Inf,
+      3
+    ),
+    ncol = 3,
+    byrow = TRUE
+  )
 
   rcl_rast <- terra::classify(sal_rast_3087, rcl_matrix)
-
-  # Per-class actual min/max from the continuous salinity raster
   class_vals <- c(0L, 1L, 3L)
-  descrips   <- c("Fresh (<0.5)", "0.5-18", ">18")
-  breaks_lo  <- c(-Inf, 0.5, 18)
-  breaks_hi  <- c(0.5,  18,  Inf)
-
+  descrips <- c("Fresh (<0.5)", "0.5-18", ">18")
   poly_list <- vector("list", 3)
 
   for (k in seq_along(class_vals)) {
     class_mask <- terra::ifel(rcl_rast == class_vals[k], 1L, NA)
-    class_sal  <- terra::mask(sal_rast_3087, class_mask)
-    val_min    <- as.numeric(terra::global(class_sal, "min", na.rm = TRUE))
-    val_max    <- as.numeric(terra::global(class_sal, "max", na.rm = TRUE))
+    class_sal <- terra::mask(sal_rast_3087, class_mask)
+    val_min <- as.numeric(terra::global(class_sal, "min", na.rm = TRUE))
+    val_max <- as.numeric(terra::global(class_sal, "max", na.rm = TRUE))
 
     poly_list[[k]] <- terra::as.polygons(class_mask, dissolve = TRUE) |>
       sf::st_as_sf() |>
@@ -962,10 +976,10 @@ build_salinity_layer <- function(
       sf::st_cast("MULTIPOLYGON") |>
       dplyr::summarise(geometry = sf::st_union(geometry)) |>
       dplyr::mutate(
-        Classes   = class_vals[k],
+        Classes = class_vals[k],
         Value_Min = val_min,
         Value_Max = val_max,
-        Descrip   = descrips[k]
+        Descrip = descrips[k]
       ) |>
       dplyr::select(Classes, Value_Min, Value_Max, Descrip)
   }
@@ -973,8 +987,22 @@ build_salinity_layer <- function(
   sal_poly <- dplyr::bind_rows(poly_list) |>
     dplyr::arrange(Classes)
 
-  if (verbose)
+  # --- simplify topology-aware (no gaps between zones) ---------------------
+
+  if (smooth) {
+    if (verbose) {
+      cat("Simplifying polygons...\n")
+    }
+    sal_poly <- rmapshaper::ms_simplify(
+      sal_poly,
+      keep = simplify_keep,
+      keep_shapes = TRUE
+    )
+  }
+
+  if (verbose) {
     cat(sprintf("Final layer: %d features\n", nrow(sal_poly)))
+  }
 
   sal_poly
 }

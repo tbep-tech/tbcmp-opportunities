@@ -14,7 +14,7 @@ format:
 
 ## Overview
 
-This document describes the methods used to derive spatial input layers for the Tampa Bay Coastal Master Plan (TBCMP) habitat opportunity analysis. All processing is implemented in `R/funcs.R` and executed in `R/01_inputs.R`.
+This document describes the methods used to create spatial input layers for the Tampa Bay Coastal Master Plan (TBCMP) habitat opportunity analysis. All processing is implemented in `R/funcs.R` and executed in `R/01_inputs.R`.
 
 Inputs are created for seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.
 
@@ -170,6 +170,70 @@ The final layer is saved to `data/soils.RData`.
 | `fetch_soils_tiled()` | Fetch SSURGO polygons via tiled SDA queries |
 | `classify_soils_muname()` | Query munames from SDA and classify by series |
 | `build_soils_layer()` | Combine fetch, classify, clip, and dissolve |
+
+## Salinity
+
+The salinity layer classifies the study area into three salinity zones based on long-term mean surface water salinity. The zones are used to characterize estuarine habitat type and inform restoration potential.
+
+### Source Data
+
+Salinity observations are retrieved from the USEPA Water Quality Portal (WQP). Data are queried for the characteristic name `"Salinity"` over a multi-year period using the WQP REST API:
+
+```
+https://www.waterqualitydata.us/data/Result/search
+```
+
+Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in `data-raw/wqp_cache`.
+
+Units `psu`, `PSU`, `ppt`, and `ppth` are treated as equivalent at estuarine salinities and pooled before computing station means.
+
+### Station Aggregation
+
+For each monitoring station, the long-term mean salinity is computed across all observations in the query period. Stations are converted to an `sf` point layer in EPSG:3087.
+
+### Spatial Interpolation
+
+Station means are interpolated to a continuous surface using a thin-plate spline (TPS) from the `fields` package, fitted in geographic coordinates (EPSG:4326). The spline is predicted onto a regular grid (default spacing 0.001°, ~100 m), limited to a minimum of 0 psu, then projected to EPSG:3087 using bilinear resampling.
+
+### Classification
+
+The continuous salinity surface is reclassified into three zones following the original Tampa Bay Habitat Master Plan salinity layer schema and the 18 psu cutoff of @eleuterius1979:
+
+| Class | Descrip | Range |
+|---|---|---|
+| 0 | Fresh | < 0.5 psu |
+| 1 | Oligohaline/Mesohaline | 0.5 – 18 psu |
+| 3 | Polyhaline/Euhaline | ≥ 18 psu |
+
+Each class is vectorized from the classified raster using `terra::as.polygons()` (dissolved), clipped to the county boundary, and unioned to a single `MULTIPOLYGON` feature.
+
+### Boundary Smoothing
+
+Raster-to-vector conversion produces staircase artifacts along zone boundaries. To remove these, the combined three-class polygon layer is simplified using `rmapshaper::ms_simplify()` with topology preservation enabled. This method applies the Visvalingam-Whyatt algorithm across all features simultaneously, ensuring that shared boundaries between adjacent zones are continuous.
+
+The `simplify_keep` parameter (default 0.05) controls the fraction of vertices retained. Lower values produce smoother boundaries and higher values stay closer to the original raster edges.
+
+### Output
+
+The final layer contains one feature per salinity class with the actual minimum and maximum predicted salinity values within each zone.
+
+| Field | Description |
+|---|---|
+| `Classes` | Integer class code (0, 1, 3) |
+| `Value_Min` | Minimum predicted salinity within zone (psu) |
+| `Value_Max` | Maximum predicted salinity within zone (psu) |
+| `Descrip` | Zone label |
+| `crs` | EPSG:3087 |
+
+The final layer is saved to `data/salinity_layer.RData`.
+
+### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `build_salinity_layer()` | Fetch WQP data, interpolate, classify, and vectorize |
+| `wqp_download_chunk()` | Download and cache a single WQP query chunk |
+| `wqp_read_zip_csv()` | Extract and parse columns from a WQP zip archive |
 
 ## References
 

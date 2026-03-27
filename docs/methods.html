@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Tampa Bay Estuary Program">
-<meta name="dcterms.date" content="2026-03-25">
+<meta name="dcterms.date" content="2026-03-27">
 
 <title>Opportunity Analysis Methods</title>
 <style>
@@ -2349,6 +2349,16 @@ window.Quarto = {
   <li><a href="#output" id="toc-output" class="nav-link" data-scroll-target="#output">Output</a></li>
   <li><a href="#key-functions-1" id="toc-key-functions-1" class="nav-link" data-scroll-target="#key-functions-1">Key Functions</a></li>
   </ul></li>
+  <li><a href="#salinity" id="toc-salinity" class="nav-link" data-scroll-target="#salinity">Salinity</a>
+  <ul class="collapse">
+  <li><a href="#source-data-1" id="toc-source-data-1" class="nav-link" data-scroll-target="#source-data-1">Source Data</a></li>
+  <li><a href="#station-aggregation" id="toc-station-aggregation" class="nav-link" data-scroll-target="#station-aggregation">Station Aggregation</a></li>
+  <li><a href="#spatial-interpolation" id="toc-spatial-interpolation" class="nav-link" data-scroll-target="#spatial-interpolation">Spatial Interpolation</a></li>
+  <li><a href="#classification" id="toc-classification" class="nav-link" data-scroll-target="#classification">Classification</a></li>
+  <li><a href="#boundary-smoothing" id="toc-boundary-smoothing" class="nav-link" data-scroll-target="#boundary-smoothing">Boundary Smoothing</a></li>
+  <li><a href="#output-1" id="toc-output-1" class="nav-link" data-scroll-target="#output-1">Output</a></li>
+  <li><a href="#key-functions-2" id="toc-key-functions-2" class="nav-link" data-scroll-target="#key-functions-2">Key Functions</a></li>
+  </ul></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul>
 </nav>
@@ -2374,7 +2384,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">March 25, 2026</p>
+      <p class="date">March 27, 2026</p>
     </div>
   </div>
   
@@ -2388,7 +2398,7 @@ window.Quarto = {
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>This document describes the methods used to derive spatial input layers for the Tampa Bay Coastal Master Plan (TBCMP) habitat opportunity analysis. All processing is implemented in <code>R/funcs.R</code> and executed in <code>R/01_inputs.R</code>.</p>
+<p>This document describes the methods used to create spatial input layers for the Tampa Bay Coastal Master Plan (TBCMP) habitat opportunity analysis. All processing is implemented in <code>R/funcs.R</code> and executed in <code>R/01_inputs.R</code>.</p>
 <p>Inputs are created for seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.</p>
 </section>
 <section id="coastal-stratum" class="level2">
@@ -2629,12 +2639,134 @@ window.Quarto = {
 </table>
 </section>
 </section>
+<section id="salinity" class="level2">
+<h2 class="anchored" data-anchor-id="salinity">Salinity</h2>
+<p>The salinity layer classifies the study area into three salinity zones based on long-term mean surface water salinity. The zones are used to characterize estuarine habitat type and inform restoration potential.</p>
+<section id="source-data-1" class="level3">
+<h3 class="anchored" data-anchor-id="source-data-1">Source Data</h3>
+<p>Salinity observations are retrieved from the USEPA Water Quality Portal (WQP). Data are queried for the characteristic name <code>&quot;Salinity&quot;</code> over a multi-year period using the WQP REST API:</p>
+<pre><code>https://www.waterqualitydata.us/data/Result/search</code></pre>
+<p>Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in <code>data-raw/wqp_cache</code>.</p>
+<p>Units <code>psu</code>, <code>PSU</code>, <code>ppt</code>, and <code>ppth</code> are treated as equivalent at estuarine salinities and pooled before computing station means.</p>
+</section>
+<section id="station-aggregation" class="level3">
+<h3 class="anchored" data-anchor-id="station-aggregation">Station Aggregation</h3>
+<p>For each monitoring station, the long-term mean salinity is computed across all observations in the query period. Stations are converted to an <code>sf</code> point layer in EPSG:3087.</p>
+</section>
+<section id="spatial-interpolation" class="level3">
+<h3 class="anchored" data-anchor-id="spatial-interpolation">Spatial Interpolation</h3>
+<p>Station means are interpolated to a continuous surface using a thin-plate spline (TPS) from the <code>fields</code> package, fitted in geographic coordinates (EPSG:4326). The spline is predicted onto a regular grid (default spacing 0.001°, ~100 m), limited to a minimum of 0 psu, then projected to EPSG:3087 using bilinear resampling.</p>
+</section>
+<section id="classification" class="level3">
+<h3 class="anchored" data-anchor-id="classification">Classification</h3>
+<p>The continuous salinity surface is reclassified into three zones following the original Tampa Bay Habitat Master Plan salinity layer schema and the 18 psu cutoff of <span class="citation" data-cites="eleuterius1979">Eleuterius and Eleuterius (<a href="#ref-eleuterius1979" role="doc-biblioref">1979</a>)</span>:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Class</th>
+<th>Descrip</th>
+<th>Range</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>Fresh</td>
+<td>&lt; 0.5 psu</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>Oligohaline/Mesohaline</td>
+<td>0.5 – 18 psu</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Polyhaline/Euhaline</td>
+<td>≥ 18 psu</td>
+</tr>
+</tbody>
+</table>
+<p>Each class is vectorized from the classified raster using <code>terra::as.polygons()</code> (dissolved), clipped to the county boundary, and unioned to a single <code>MULTIPOLYGON</code> feature.</p>
+</section>
+<section id="boundary-smoothing" class="level3">
+<h3 class="anchored" data-anchor-id="boundary-smoothing">Boundary Smoothing</h3>
+<p>Raster-to-vector conversion produces staircase artifacts along zone boundaries. To remove these, the combined three-class polygon layer is simplified using <code>rmapshaper::ms_simplify()</code> with topology preservation enabled. This method applies the Visvalingam-Whyatt algorithm across all features simultaneously, ensuring that shared boundaries between adjacent zones are continuous.</p>
+<p>The <code>simplify_keep</code> parameter (default 0.05) controls the fraction of vertices retained. Lower values produce smoother boundaries and higher values stay closer to the original raster edges.</p>
+</section>
+<section id="output-1" class="level3">
+<h3 class="anchored" data-anchor-id="output-1">Output</h3>
+<p>The final layer contains one feature per salinity class with the actual minimum and maximum predicted salinity values within each zone.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Classes</code></td>
+<td>Integer class code (0, 1, 3)</td>
+</tr>
+<tr class="even">
+<td><code>Value_Min</code></td>
+<td>Minimum predicted salinity within zone (psu)</td>
+</tr>
+<tr class="odd">
+<td><code>Value_Max</code></td>
+<td>Maximum predicted salinity within zone (psu)</td>
+</tr>
+<tr class="even">
+<td><code>Descrip</code></td>
+<td>Zone label</td>
+</tr>
+<tr class="odd">
+<td><code>crs</code></td>
+<td>EPSG:3087</td>
+</tr>
+</tbody>
+</table>
+<p>The final layer is saved to <code>data/salinity_layer.RData</code>.</p>
+</section>
+<section id="key-functions-2" class="level3">
+<h3 class="anchored" data-anchor-id="key-functions-2">Key Functions</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>build_salinity_layer()</code></td>
+<td>Fetch WQP data, interpolate, classify, and vectorize</td>
+</tr>
+<tr class="even">
+<td><code>wqp_download_chunk()</code></td>
+<td>Download and cache a single WQP query chunk</td>
+</tr>
+<tr class="odd">
+<td><code>wqp_read_zip_csv()</code></td>
+<td>Extract and parse columns from a WQP zip archive</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
 <section id="references" class="level2 unnumbered">
 
 
 </section>
 
 <div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="ref-eleuterius1979" class="csl-entry" role="listitem">
+Eleuterius, L. N., and C. K. Eleuterius. 1979. <span>“Tide Levels and Salt Marsh Zonation.”</span> <em>Bulletin of Marine Science</em> 29 (3): 394–400.
+</div>
 <div id="ref-tbep0514" class="csl-entry" role="listitem">
 Ries, T., and S. Scheda. 2014. <span>“Master Plan for the Protection and Restoration of Freshwater Wetlands in the <span>T</span>ampa <span>B</span>ay Watershed, <span>F</span>lorida.”</span> 05-14. St. Petersburg, Florida: Tampa Bay Estuary Program. <a href="https://drive.google.com/file/d/1NjExx3M63zmypXN9D1Yc7DNkVpS-8FFm/view?usp=drivesdk">https://drive.google.com/file/d/1NjExx3M63zmypXN9D1Yc7DNkVpS-8FFm/view?usp=drivesdk</a>.
 </div>
