@@ -434,3 +434,32 @@ save(exst, file = here('data', 'exst.RData'), compress = 'xz')
 
 # save 2023 lulc files to data folder by county
 fetch_lulc()
+
+load(file = here('data', 'lulc_pinellas.RData'))
+load(file = here('data', 'lulc_hillsborough.RData'))
+
+lulc_pinellas_4326 <- st_transform(lulc_pinellas, 4326)
+lulc_hillsborough_4326 <- st_transform(lulc_hillsborough, 4326)
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    data = lulc_pinellas_4326,
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    label = ~FLUCCSCODE,
+    group = 'pinellas'
+  ) |>
+  addPolygons(
+    data = lulc_hillsborough_4326,
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    label = ~FLUCCSCODE,
+    group = 'hillsborough'
+  ) |>
+  addLayersControl(
+    overlayGroups = c('pinellas', 'hillsborough'),
+    options = layersControlOptions(collapsed = FALSE)
+  )

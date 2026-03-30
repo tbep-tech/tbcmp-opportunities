@@ -332,5 +332,49 @@ Both layers are cast to `POLYGON` geometry and saved to `data/exst.RData` and `d
 | `fetch_clip()` | Download, reclassify, clip, and vectorize the CLIP raster |
 | `build_prop_exst()` | Merge source layers into mutually exclusive existing and proposed layers |
 
+## Land Use/Land Cover
+
+Land use and land cover (LULC) data are obtained for the seven-county area. Data are downloaded separately for each county due to file size and saved as individual county-level RData files.
+
+### Source Data
+
+The 2023 LULC shapefiles are produced by the Southwest Florida Water Management District (SWFWMD) and distributed through the SWFWMD ArcGIS portal. Each county dataset is a separate item available via the ArcGIS sharing REST API:
+
+```
+https://swfwmd.maps.arcgis.com/sharing/rest/content/items/{item_id}/data
+```
+
+| County | Item ID |
+|---|---|
+| Citrus | `ef11d576fcb44a44b8985a2bbc38a4f7` |
+| Hernando | `86997a7802584735a8d8193f4a1af30f` |
+| Hillsborough | `f95454790b724f7fb4a396c5de3c94d2` |
+| Manatee | `5b0895fe575e4ab297e50546d99e407a` |
+| Pasco | `81b1498949cd4ba8b9db52ca9e47653b` |
+| Pinellas | `f0d97c30ada6487eb91196de088ee2fc` |
+| Sarasota | `06b95375e3dc48e1b61a9b95a87aba30` |
+
+Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the `FLUCCSCODE` field.
+
+### Processing
+
+Each county shapefile is downloaded as a zip archive, extracted, read with `sf::st_read()`, and reprojected to EPSG:3087. The zip and temporary extraction directory are deleted after processing. Each county is saved as a separate RData file with an object name matching the file name:
+
+| File | Object |
+|---|---|
+| `data/lulc_citrus.RData` | `lulc_citrus` |
+| `data/lulc_hernando.RData` | `lulc_hernando` |
+| `data/lulc_hillsborough.RData` | `lulc_hillsborough` |
+| `data/lulc_manatee.RData` | `lulc_manatee` |
+| `data/lulc_pasco.RData` | `lulc_pasco` |
+| `data/lulc_pinellas.RData` | `lulc_pinellas` |
+| `data/lulc_sarasota.RData` | `lulc_sarasota` |
+
+### Key Function
+
+| Function | Purpose |
+|---|---|
+| `fetch_lulc()` | Download, reproject, and save all seven county LULC shapefiles |
+
 ## References
 
