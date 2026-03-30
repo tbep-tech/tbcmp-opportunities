@@ -1072,7 +1072,16 @@ fetch_fnai <- function(
       util = "vectortranslate",
       source = gdb[1],
       destination = tmp_gpkg,
-      options = c("-nlt", "CONVERT_TO_LINEAR", "-nlt", "PROMOTE_TO_MULTI", "-f", "GPKG", "-lco", "SPATIAL_INDEX=NO")
+      options = c(
+        "-nlt",
+        "CONVERT_TO_LINEAR",
+        "-nlt",
+        "PROMOTE_TO_MULTI",
+        "-f",
+        "GPKG",
+        "-lco",
+        "SPATIAL_INDEX=NO"
+      )
     )
     out <- sf::st_read(tmp_gpkg, quiet = !verbose)
   } else {
@@ -1122,10 +1131,14 @@ fetch_aqprs <- function(
     source = url,
     destination = tmp,
     options = c(
-      '-nlt', 'PROMOTE_TO_MULTI',
-      '-nlt', 'CONVERT_TO_LINEAR',
-      '-f', 'GPKG',
-      '-lco', 'SPATIAL_INDEX=NO'
+      '-nlt',
+      'PROMOTE_TO_MULTI',
+      '-nlt',
+      'CONVERT_TO_LINEAR',
+      '-f',
+      'GPKG',
+      '-lco',
+      'SPATIAL_INDEX=NO'
     )
   )
 
@@ -1162,22 +1175,27 @@ fetch_clip <- function(
   cache_dir = here::here('data-raw', 'fnai'),
   verbose = TRUE
 ) {
-  if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+  if (!dir.exists(cache_dir)) {
+    dir.create(cache_dir, recursive = TRUE)
+  }
 
   zip_path <- file.path(cache_dir, basename(url))
 
-  if (verbose) cat('Downloading CLIP zip...\n')
+  if (verbose) {
+    cat('Downloading CLIP zip...\n')
+  }
   resp <- httr2::request(url) |>
     httr2::req_timeout(1800) |>
     httr2::req_retry(max_tries = 3, backoff = ~60) |>
     httr2::req_perform()
   writeBin(httr2::resp_body_raw(resp), zip_path)
-  if (verbose) cat(sprintf('  Saved (%.0f MB)\n', file.size(zip_path) / 1e6))
+  if (verbose) {
+    cat(sprintf('  Saved (%.0f MB)\n', file.size(zip_path) / 1e6))
+  }
 
   tmp_dir <- tempfile()
   on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE), add = TRUE)
   utils::unzip(zip_path, exdir = tmp_dir)
-
   clip_gdb <- list.files(
     tmp_dir,
     pattern = 'priorities\\.gdb$',
@@ -1185,11 +1203,26 @@ fetch_clip <- function(
     recursive = TRUE,
     include.dirs = TRUE
   )
-  if (!length(clip_gdb)) stop('No priorities.gdb found in CLIP zip')
 
+  if (!length(clip_gdb)) {
+    stop('No priorities.gdb found in CLIP zip')
+  }
   r <- terra::rast(paste0('OpenFileGDB:"', clip_gdb[1], '":CLIPprio_v4'))
   r <- terra::project(r, paste0('EPSG:', crs))
-  r[r < 1 | r > max_priority] <- NA
+
+  # Build reclassification matrix from the raster's actual pixel values.
+  # terra::cats(), sf::st_layers(), and gdalinfo all fail to expose the VAT for
+  # this OpenFileGDB raster. Instead, derive the mapping from terra::freq():
+  # the raster has Mask Flags: PER_DATASET so "No Resource Value" pixels are
+  # already NA, leaving only the 5 priority pixel values. By CLIP v4 convention
+  # (confirmed in ArcMap), higher pixel value = higher conservation priority,
+  # so the maximum pixel value maps to Priority 1 (highest).
+  frq <- terra::freq(r)
+  frq <- frq[order(frq$value), ] # sort low -> high pixel value
+  frq$priority <- rev(seq_len(nrow(frq))) # max pixel value -> priority 1
+  rcl <- as.matrix(frq[, c("value", "priority")])
+  r <- terra::classify(r, rcl, others = NA)
+  r[r > max_priority] <- NA
   r <- terra::mask(r, terra::vect(cnt))
 
   v <- terra::as.polygons(r) |>
@@ -1202,7 +1235,9 @@ fetch_clip <- function(
 
   # Remove the large zip now that polygons are built
   unlink(zip_path)
-  if (verbose) cat('  CLIP zip removed\n')
+  if (verbose) {
+    cat('  CLIP zip removed\n')
+  }
 
   v
 }
@@ -1248,7 +1283,6 @@ build_prop_exst <- function(
   exstorig_url = 'https://opendata.arcgis.com/datasets/e977c851f6dc49c48d0729b3cd30cc92_3.geojson',
   crs = 3087L
 ) {
-
   # --- existing conservation -----------------------------------------------
 
   exst <- sf::st_geometry(flma) |>
@@ -1267,10 +1301,14 @@ build_prop_exst <- function(
     source = exstorig_url,
     destination = exstorig_tmp,
     options = c(
-      '-nlt', 'PROMOTE_TO_MULTI',
-      '-nlt', 'CONVERT_TO_LINEAR',
-      '-f', 'GPKG',
-      '-lco', 'SPATIAL_INDEX=NO'
+      '-nlt',
+      'PROMOTE_TO_MULTI',
+      '-nlt',
+      'CONVERT_TO_LINEAR',
+      '-f',
+      'GPKG',
+      '-lco',
+      'SPATIAL_INDEX=NO'
     )
   )
   exstorig <- sf::st_read(exstorig_tmp, quiet = TRUE) |>
@@ -1294,9 +1332,9 @@ build_prop_exst <- function(
   a <- sf::st_set_precision(exst, 1e5)
   b <- sf::st_set_precision(prop, 1e5)
 
-  op1 <- sf::st_difference(a, b)    # existing not in proposed
-  op2 <- sf::st_difference(b, a)    # proposed not in existing
-  op3 <- sf::st_intersection(a, b)  # overlap -> moves to existing
+  op1 <- sf::st_difference(a, b) # existing not in proposed
+  op2 <- sf::st_difference(b, a) # proposed not in existing
+  op3 <- sf::st_intersection(a, b) # overlap -> moves to existing
 
   prop <- sf::st_cast(op2, 'POLYGON')
   exst <- sf::st_union(op1, op3) |>

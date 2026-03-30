@@ -28,7 +28,8 @@
       "WebFetch(domain:sagittarius.at.geoplan.ufl.edu)",
       "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/FNAI?f=json\")",
       "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/UF_CLCP?f=json\")",
-      "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/CLCP_SL20402070?f=json\")"
+      "Bash(curl -s \"https://sagittarius.at.geoplan.ufl.edu/arcgis/rest/services/fgdl/CLCP_SL20402070?f=json\")",
+      "WebFetch(domain:swfwmd.maps.arcgis.com)"
     ]
   }
 }
