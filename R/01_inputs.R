@@ -19,11 +19,11 @@ prj <- 3087
 # FLUCCS lookup ----------------------------------------------------------
 
 fluccs <- read.csv(
-  here('data-raw', 'FLUCCShabsclass.csv'),
+  here('data-raw', '01_inputs', 'FLUCCShabsclass.csv'),
   stringsAsFactors = F
 )
 
-save(fluccs, file = here('data', 'fluccs.RData'), compress = 'xz')
+save(fluccs, file = here('data', '01_inputs','fluccs.RData'), compress = 'xz')
 
 # stratification lookup table ---------------------------------------------
 
@@ -72,16 +72,16 @@ strata <- data.frame(
     HMPU_TARGETS = factor(HMPU_TARGETS, levels = HMPU_TARGETS)
   )
 
-save(strata, file = here('data', 'strata.RData'), compress = 'xz')
+save(strata, file = here('data', '01_inputs','strata.RData'), compress = 'xz')
 
 # tbcmp counties ---------------------------------------------------------
 
 # # TBCMP project area bounded by 7 county census areas including associated coastal areas tied to local/state jurisdictions
 # curl_download(url = "https://www2.census.gov/geo/tiger/TIGER2025/COUSUB/tl_2025_12_cousub.zip",
-#              destfile = "./data-raw/tl_2025_12_cousub.zip")
-# unzip("./data-raw/tl_2025_12_cousub.zip", exdir = "./data-raw")
+#              destfile = "./data-raw/01_inputs/tl_2025_12_cousub.zip")
+# unzip("./data-raw/01_inputs/tl_2025_12_cousub.zip", exdir = "./data-raw/01_inputs")
 
-fl_counties <- st_read("./data-raw/tl_2025_12_cousub.shp")
+fl_counties <- st_read("./data-raw/01_inputs/tl_2025_12_cousub.shp")
 
 tbcmp_cnt <- fl_counties |>
   st_transform(prj) |>
@@ -102,7 +102,7 @@ tbcmp_cnt <- fl_counties |>
   summarise() |>
   ungroup()
 
-save(tbcmp_cnt, file = here('data', 'tbcmp_cnt.RData'), compress = 'xz')
+save(tbcmp_cnt, file = here('data', '01_inputs','tbcmp_cnt.RData'), compress = 'xz')
 
 # coastal stratum --------------------------------------------------------
 
@@ -114,18 +114,18 @@ save(tbcmp_cnt, file = here('data', 'tbcmp_cnt.RData'), compress = 'xz')
 # cudem_raw <- rast(paste0('OpenFileGDB:"', gdb, '":NOAA_CUDEM_tbcmp_extent_m'))
 #
 # # Crop to study area and aggregate to 10m resolution
-# load(file = here('data', 'tbcmp_cnt.RData'))
+# load(file = here('data', '01_inputs','tbcmp_cnt.RData'))
 # cudem_raw <- crop(cudem_raw, vect(tbcmp_cnt)) |>
 #   mask(vect(tbcmp_cnt)) |>
 #   aggregate(fact = 5, fun = "mean")  # 2m -> 10m
 #
 # # Save locally then upload to S3 for future use
-# writeRaster(cudem_raw, here("data/cudem_3087.tif"), filetype = "COG", overwrite = TRUE)
-# # aws.s3::put_object(file = here("data/cudem_3087.tif"),
+# writeRaster(cudem_raw, here("data/01_inputs/cudem_3087.tif"), filetype = "COG", overwrite = TRUE)
+# # aws.s3::put_object(file = here("data/01_inputs/cudem_3087.tif"),
 # #                    object = "cudem_3087.tif", bucket = "tbcmp")
 
 # Load county boundaries
-load(file = here('data', 'tbcmp_cnt.RData'))
+load(file = here('data', '01_inputs','tbcmp_cnt.RData'))
 
 # Load CUDEM topobathy (10m, EPSG:3087, NAVD88 meters) from S3
 cudem <- rast("/vsicurl/https://tbcmp.s3.amazonaws.com/cudem_3087.tif")
@@ -146,7 +146,7 @@ coastal_stratum <- make_coastal_stratum(cudem, mllw_surface)
 
 save(
   coastal_stratum,
-  file = here('data', 'coastal_stratum.RData'),
+  file = here('data', '01_inputs','coastal_stratum.RData'),
   compress = 'xz'
 )
 
@@ -154,7 +154,7 @@ save(
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/coastal.RData')
 coastal_4326 <- st_transform(coastal, 4326) |>
   st_zm()
-load(file = here('data', 'coastal_stratum.RData'))
+load(file = here('data', '01_inputs','coastal_stratum.RData'))
 coastal_stratum_4326 <- st_transform(coastal_stratum, 4326)
 
 leaflet() |>
@@ -179,7 +179,7 @@ leaflet() |>
 # salinity ---------------------------------------------------------------
 
 # Load county boundaries
-load(file = here('data', 'tbcmp_cnt.RData'))
+load(file = here('data', '01_inputs','tbcmp_cnt.RData'))
 
 salinity_layer <- build_salinity_layer(
   counties = tbcmp_cnt,
@@ -188,7 +188,7 @@ salinity_layer <- build_salinity_layer(
 
 save(
   salinity_layer,
-  file = here('data', 'salinity_layer.RData'),
+  file = here('data', '01_inputs','salinity_layer.RData'),
   compress = 'xz'
 )
 
@@ -247,15 +247,15 @@ leaflet() |>
 # Queries are issued county by county to stay within SDA size limits.
 # Component attributes are chunked in groups of 500 mukeys.
 
-load(file = here('data', 'tbcmp_cnt.RData'))
+load(file = here('data', '01_inputs','tbcmp_cnt.RData'))
 
 soils <- build_soils_layer(tbcmp_cnt, crs = prj)
 
-save(soils, file = here('data', 'soils.RData'), compress = 'xz')
+save(soils, file = here('data', '01_inputs','soils.RData'), compress = 'xz')
 
 # load original TB-only soils for comparison
 
-load(file = here('data', 'soils.RData'))
+load(file = here('data', '01_inputs','soils.RData'))
 soils_4326 <- st_transform(soils, 4326)
 
 soils_tb <- get(load(
@@ -316,10 +316,10 @@ leaflet() |>
 
 # proposed and conservation lands ----------------------------------------
 
-# All FNAI zips are cached to data-raw/fnai/ so re-runs skip the download.
+# All FNAI zips are cached to data-raw/01_inputs/fnai/ so re-runs skip the download.
 # Update the filenames in the URLs when FNAI publishes newer versions.
 
-load(file = here('data', 'tbcmp_cnt.RData'))
+load(file = here('data', '01_inputs','tbcmp_cnt.RData'))
 
 # FLMA: Florida Conservation Lands (excludes MacDill AFB)
 flma <- fetch_fnai(
@@ -328,7 +328,7 @@ flma <- fetch_fnai(
 ) |>
   dplyr::filter(!MANAME %in% 'MacDill Air Force Base')
 
-save(flma, file = here('data', 'flma.RData'), compress = 'xz')
+save(flma, file = here('data', '01_inputs','flma.RData'), compress = 'xz')
 
 # FFBOT: Future Forever Board of Trustees projects
 ffbot <- fetch_fnai(
@@ -336,7 +336,7 @@ ffbot <- fetch_fnai(
   cnt = tbcmp_cnt
 )
 
-save(ffbot, file = here('data', 'ffbot.RData'), compress = 'xz')
+save(ffbot, file = here('data', '01_inputs','ffbot.RData'), compress = 'xz')
 
 # FFA: Future Forever acquisitions
 ffa <- fetch_fnai(
@@ -344,28 +344,28 @@ ffa <- fetch_fnai(
   cnt = tbcmp_cnt
 )
 
-save(ffa, file = here('data', 'ffa.RData'), compress = 'xz')
+save(ffa, file = here('data', '01_inputs','ffa.RData'), compress = 'xz')
 
 # Aquatic Preserves: Florida DEP
 # Source: https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0
 
 aqprs <- fetch_aqprs(cnt = tbcmp_cnt)
 
-save(aqprs, file = here('data', 'aqprs.RData'), compress = 'xz')
+save(aqprs, file = here('data', '01_inputs','aqprs.RData'), compress = 'xz')
 
 # CLIP: Critical Lands and Waters Identification Project (FNAI)
 # Source: https://www.fnai.org/services/clip
 # Raster inside File GDB read via GDAL OpenFileGDB driver (requires GDAL >= 3.7).
 # Values 1-5; 1 = highest priority. Zip removed after processing.
 
-load(file = here('data', 'tbcmp_cnt.RData'))
+load(file = here('data', '01_inputs','tbcmp_cnt.RData'))
 
 clip <- fetch_clip(cnt = tbcmp_cnt)
 
-save(clip, file = here('data', 'clip.RData'), compress = 'xz')
+save(clip, file = here('data', '01_inputs','clip.RData'), compress = 'xz')
 
 # compare to existing TB CLIP layer
-load(file = here('data', 'clip.RData'))
+load(file = here('data', '01_inputs','clip.RData'))
 clip_old <- sf::st_read(
   'https://opendata.arcgis.com/datasets/ba464bae7a1144f09522b459d297d1ef_10.geojson'
 ) |>
@@ -417,26 +417,26 @@ leaflet() |>
 
 # proposed and existing conservation lands --------------------------------
 
-load(file = here('data', 'flma.RData'))
-load(file = here('data', 'ffbot.RData'))
-load(file = here('data', 'ffa.RData'))
-load(file = here('data', 'aqprs.RData'))
-load(file = here('data', 'clip.RData'))
+load(file = here('data', '01_inputs','flma.RData'))
+load(file = here('data', '01_inputs','ffbot.RData'))
+load(file = here('data', '01_inputs','ffa.RData'))
+load(file = here('data', '01_inputs','aqprs.RData'))
+load(file = here('data', '01_inputs','clip.RData'))
 
 out <- build_prop_exst(flma, ffbot, ffa, aqprs, clip)
 prop <- out$prop
 exst <- out$exst
 
-save(prop, file = here('data', 'prop.RData'), compress = 'xz')
-save(exst, file = here('data', 'exst.RData'), compress = 'xz')
+save(prop, file = here('data', '01_inputs','prop.RData'), compress = 'xz')
+save(exst, file = here('data', '01_inputs','exst.RData'), compress = 'xz')
 
 # LULC -------------------------------------------------------------------
 
 # save 2023 lulc files to data folder by county
 fetch_lulc()
 
-load(file = here('data', 'lulc_pinellas.RData'))
-load(file = here('data', 'lulc_hillsborough.RData'))
+load(file = here('data', '01_inputs','lulc_pinellas.RData'))
+load(file = here('data', '01_inputs','lulc_hillsborough.RData'))
 
 lulc_pinellas_4326 <- st_transform(lulc_pinellas, 4326)
 lulc_hillsborough_4326 <- st_transform(lulc_hillsborough, 4326)

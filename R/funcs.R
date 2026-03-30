@@ -720,7 +720,7 @@ wqp_read_zip_csv <- function(zip_path, col_select, cache_dir) {
 #'   \code{countycode} parameters — use this if the full-extent download is
 #'   too large or times out.
 #' @param cache_dir Character. Directory for cached zip downloads. Created if
-#'   it does not exist. Defaults to \code{data-raw/wqp_cache} in the project
+#'   it does not exist. Defaults to \code{data-raw/01_inputs/wqp_cache} in the project
 #'   root.
 #' @param interp_res Numeric. TPS prediction grid spacing in decimal degrees.
 #'   Default \code{0.001} (~100 m). Coarser values (e.g. \code{0.005}) reduce
@@ -752,7 +752,7 @@ build_salinity_layer <- function(
   char_names = "Salinity",
   valid_units = c("psu", "PSU", "ppt", "ppth"),
   by_county = FALSE,
-  cache_dir = here::here("data-raw", "wqp_cache"),
+  cache_dir = here::here("data-raw", "01_inputs", "wqp_cache"),
   interp_res = 0.001,
   smooth = TRUE,
   simplify_keep = 0.05,
@@ -1018,7 +1018,7 @@ build_salinity_layer <- function(
 #' @param cnt An \code{sf} polygon of the study area used to clip the
 #'   output.
 #' @param cache_dir Character. Directory for the cached zip. Created if it does
-#'   not exist. Defaults to \code{data-raw/fnai} in the project root.
+#'   not exist. Defaults to \code{data-raw/01_inputs/fnai} in the project root.
 #' @param crs Integer EPSG code for the output CRS. Default \code{3087L}.
 #' @param verbose Logical. Print progress messages. Default \code{TRUE}.
 #'
@@ -1027,7 +1027,7 @@ build_salinity_layer <- function(
 fetch_fnai <- function(
   url,
   cnt,
-  cache_dir = here::here("data-raw", "fnai"),
+  cache_dir = here::here("data-raw", "01_inputs", "fnai"),
   crs = 3087L,
   verbose = TRUE
 ) {
@@ -1155,13 +1155,13 @@ fetch_aqprs <- function(
 #' Downloads the 2023 Land Use Land Cover shapefiles for each of the seven
 #' TBCMP counties from the Southwest Florida Water Management District (SWFWMD)
 #' ArcGIS portal. Each county is saved as a separate \code{.RData} file in
-#' \code{data/} with an object name matching the file name (e.g.,
+#' \code{data/01_inputs/} with an object name matching the file name (e.g.,
 #' \code{lulc_pinellas}). Zip files are deleted after processing; re-running
 #' will re-download because the zips are not cached.
 #'
 #' Source: \url{https://swfwmd.maps.arcgis.com}
 #'
-#' @return Called for its side-effect of writing \code{data/lulc_<county>.RData}
+#' @return Called for its side-effect of writing \code{data/01_inputs/lulc_<county>.RData}
 #'   files. Returns \code{invisible(NULL)}.
 
 fetch_lulc <- function() {
@@ -1175,7 +1175,7 @@ fetch_lulc <- function() {
     Sarasota = "06b95375e3dc48e1b61a9b95a87aba30"
   )
 
-  out_dir <- here::here("data")
+  out_dir <- here::here("data", "01_inputs")
 
   for (county in names(lulc_items)) {
     url <- paste0(
@@ -1228,7 +1228,7 @@ fetch_lulc <- function() {
 #' @param max_priority Integer. Retain priorities 1 through this value. Default \code{3L}.
 #' @param crs Integer EPSG code for the output CRS. Default \code{3087L}.
 #' @param cache_dir Character. Directory for the downloaded zip. Default
-#'   \code{here::here("data-raw", "fnai")}.
+#'   \code{here::here("data-raw", "01_inputs", "fnai")}.
 #' @param verbose Logical. Print progress messages. Default \code{TRUE}.
 #'
 #' @return An \code{sf} polygon object in \code{crs}.
@@ -1238,7 +1238,7 @@ fetch_clip <- function(
   url = 'https://www.fnai.org/shapefiles/CLIP_v4_02.zip',
   max_priority = 3L,
   crs = 3087L,
-  cache_dir = here::here('data-raw', 'fnai'),
+  cache_dir = here::here('data-raw', '01_inputs', 'fnai'),
   verbose = TRUE
 ) {
   if (!dir.exists(cache_dir)) {

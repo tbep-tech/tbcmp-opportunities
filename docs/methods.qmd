@@ -117,7 +117,7 @@ The raster mask is then vectorized (dissolved) to a single polygon using `terra:
 | `upper_elev_m` | `1.524` |
 | `crs` | `"EPSG:3087"` |
 
-The final polygon is saved to `data/coastal_stratum.RData`.
+The final polygon is saved to `data/01_inputs/coastal_stratum.RData`.
 
 ### Key Functions
 
@@ -163,7 +163,7 @@ Classified polygons are clipped to the study area boundary and dissolved by grid
 | 200 | Mesic |
 | 300 | Hydric |
 
-The final layer is saved to `data/soils.RData`.
+The final layer is saved to `data/01_inputs/soils.RData`.
 
 ### Key Functions
 
@@ -185,7 +185,7 @@ Salinity observations are retrieved from the USEPA Water Quality Portal (WQP). D
 https://www.waterqualitydata.us/data/Result/search
 ```
 
-Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in `data-raw/wqp_cache`.
+Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in `data-raw/01_inputs/wqp_cache`.
 
 Units `psu`, `PSU`, `ppt`, and `ppth` are treated as equivalent at estuarine salinities and pooled before computing station means.
 
@@ -227,7 +227,7 @@ The final layer contains one feature per salinity class with the actual minimum 
 | `Descrip` | Zone label |
 | `crs` | EPSG:3087 |
 
-The final layer is saved to `data/salinity_layer.RData`.
+The final layer is saved to `data/01_inputs/salinity_layer.RData`.
 
 ### Key Functions
 
@@ -239,7 +239,7 @@ The final layer is saved to `data/salinity_layer.RData`.
 
 ## Conservation Lands
 
-Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to `data-raw/fnai/`, clipped to the study area boundary, and projected to EPSG:3087.
+Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to `data-raw/01_inputs/fnai/`, clipped to the study area boundary, and projected to EPSG:3087.
 
 ### Florida Conservation Lands (FLMA)
 
@@ -249,7 +249,7 @@ The FLMA dataset is a statewide inventory of lands managed for conservation by f
 https://www.fnai.org/shapefiles/flma_202503.zip
 ```
 
-MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to `data/flma.RData`.
+MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to `data/01_inputs/flma.RData`.
 
 ### Future Forever Board of Trustees Projects (FFBOT)
 
@@ -259,7 +259,7 @@ The FFBOT layer contains lands targeted for acquisition by the Florida Board of 
 https://www.fnai.org/shapefiles/ffbot_202503.zip
 ```
 
-The layer is saved to `data/ffbot.RData`.
+The layer is saved to `data/01_inputs/ffbot.RData`.
 
 ### Future Forever Acquired Lands (FFA)
 
@@ -269,7 +269,7 @@ The FFA layer contains Florida Forever parcels that have been successfully acqui
 https://www.fnai.org/shapefiles/ff_acquired_202502.zip
 ```
 
-The layer is saved to `data/ffa.RData`.
+The layer is saved to `data/01_inputs/ffa.RData`.
 
 ### Aquatic Preserves
 
@@ -279,7 +279,7 @@ Florida's Aquatic Preserves are state-designated areas within submerged lands. T
 https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0.geojson
 ```
 
-The GeoJSON is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. The layer is saved to `data/aqprs.RData`.
+The GeoJSON is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. The layer is saved to `data/01_inputs/aqprs.RData`.
 
 ### Critical Lands and Waters Identification Project (CLIP)
 
@@ -301,7 +301,7 @@ Processing steps:
 
 4. Clip and vectorize: the raster is masked to the study area, converted to polygons with `terra::as.polygons()`, and validated with `sf::st_make_valid()`.
 
-The zip archive is deleted after processing. The final layer is saved to `data/clip.RData`.
+The zip archive is deleted after processing. The final layer is saved to `data/01_inputs/clip.RData`.
 
 ### Merging into Existing and Proposed Conservation Lands
 
@@ -321,7 +321,7 @@ Overlap correction ensures that any area appearing in both layers is assigned ex
 
 The final `exst` is the union of the first and third operations. The final `prop` is the second operation only. This ensures the two layers are mutually exclusive with no spatial overlap.
 
-Both layers are cast to `POLYGON` geometry and saved to `data/exst.RData` and `data/prop.RData` respectively.
+Both layers are cast to `POLYGON` geometry and saved to `data/01_inputs/exst.RData` and `data/01_inputs/prop.RData` respectively.
 
 ### Key Functions
 
@@ -362,13 +362,13 @@ Each county shapefile is downloaded as a zip archive, extracted, read with `sf::
 
 | File | Object |
 |---|---|
-| `data/lulc_citrus.RData` | `lulc_citrus` |
-| `data/lulc_hernando.RData` | `lulc_hernando` |
-| `data/lulc_hillsborough.RData` | `lulc_hillsborough` |
-| `data/lulc_manatee.RData` | `lulc_manatee` |
-| `data/lulc_pasco.RData` | `lulc_pasco` |
-| `data/lulc_pinellas.RData` | `lulc_pinellas` |
-| `data/lulc_sarasota.RData` | `lulc_sarasota` |
+| `data/01_inputs/lulc_citrus.RData` | `lulc_citrus` |
+| `data/01_inputs/lulc_hernando.RData` | `lulc_hernando` |
+| `data/01_inputs/lulc_hillsborough.RData` | `lulc_hillsborough` |
+| `data/01_inputs/lulc_manatee.RData` | `lulc_manatee` |
+| `data/01_inputs/lulc_pasco.RData` | `lulc_pasco` |
+| `data/01_inputs/lulc_pinellas.RData` | `lulc_pinellas` |
+| `data/01_inputs/lulc_sarasota.RData` | `lulc_sarasota` |
 
 ### Key Function
 

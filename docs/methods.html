@@ -2543,7 +2543,7 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p>The final polygon is saved to <code>data/coastal_stratum.RData</code>.</p>
+<p>The final polygon is saved to <code>data/01_inputs/coastal_stratum.RData</code>.</p>
 </section>
 </section>
 <section id="key-functions" class="level3">
@@ -2624,7 +2624,7 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p>The final layer is saved to <code>data/soils.RData</code>.</p>
+<p>The final layer is saved to <code>data/01_inputs/soils.RData</code>.</p>
 </section>
 <section id="key-functions-1" class="level3">
 <h3 class="anchored" data-anchor-id="key-functions-1">Key Functions</h3>
@@ -2663,7 +2663,7 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="source-data-1">Source Data</h3>
 <p>Salinity observations are retrieved from the USEPA Water Quality Portal (WQP). Data are queried for the characteristic name <code>&quot;Salinity&quot;</code> over a multi-year period using the WQP REST API:</p>
 <pre><code>https://www.waterqualitydata.us/data/Result/search</code></pre>
-<p>Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in <code>data-raw/wqp_cache</code>.</p>
+<p>Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in <code>data-raw/01_inputs/wqp_cache</code>.</p>
 <p>Units <code>psu</code>, <code>PSU</code>, <code>ppt</code>, and <code>ppth</code> are treated as equivalent at estuarine salinities and pooled before computing station means.</p>
 </section>
 <section id="station-aggregation" class="level3">
@@ -2743,7 +2743,7 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p>The final layer is saved to <code>data/salinity_layer.RData</code>.</p>
+<p>The final layer is saved to <code>data/01_inputs/salinity_layer.RData</code>.</p>
 </section>
 <section id="key-functions-2" class="level3">
 <h3 class="anchored" data-anchor-id="key-functions-2">Key Functions</h3>
@@ -2777,30 +2777,30 @@ window.Quarto = {
 </section>
 <section id="conservation-lands" class="level2">
 <h2 class="anchored" data-anchor-id="conservation-lands">Conservation Lands</h2>
-<p>Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to <code>data-raw/fnai/</code>, clipped to the study area boundary, and projected to EPSG:3087.</p>
+<p>Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to <code>data-raw/01_inputs/fnai/</code>, clipped to the study area boundary, and projected to EPSG:3087.</p>
 <section id="florida-conservation-lands-flma" class="level3">
 <h3 class="anchored" data-anchor-id="florida-conservation-lands-flma">Florida Conservation Lands (FLMA)</h3>
 <p>The FLMA dataset is a statewide inventory of lands managed for conservation by federal, state, and local agencies. It is published by FNAI and updated quarterly.</p>
 <pre><code>https://www.fnai.org/shapefiles/flma_202503.zip</code></pre>
-<p>MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to <code>data/flma.RData</code>.</p>
+<p>MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to <code>data/01_inputs/flma.RData</code>.</p>
 </section>
 <section id="future-forever-board-of-trustees-projects-ffbot" class="level3">
 <h3 class="anchored" data-anchor-id="future-forever-board-of-trustees-projects-ffbot">Future Forever Board of Trustees Projects (FFBOT)</h3>
 <p>The FFBOT layer contains lands targeted for acquisition by the Florida Board of Trustees under the Florida Forever conservation program. These are areas under active negotiation or approved for purchase but not yet acquired.</p>
 <pre><code>https://www.fnai.org/shapefiles/ffbot_202503.zip</code></pre>
-<p>The layer is saved to <code>data/ffbot.RData</code>.</p>
+<p>The layer is saved to <code>data/01_inputs/ffbot.RData</code>.</p>
 </section>
 <section id="future-forever-acquired-lands-ffa" class="level3">
 <h3 class="anchored" data-anchor-id="future-forever-acquired-lands-ffa">Future Forever Acquired Lands (FFA)</h3>
 <p>The FFA layer contains Florida Forever parcels that have been successfully acquired and transferred to public ownership.</p>
 <pre><code>https://www.fnai.org/shapefiles/ff_acquired_202502.zip</code></pre>
-<p>The layer is saved to <code>data/ffa.RData</code>.</p>
+<p>The layer is saved to <code>data/01_inputs/ffa.RData</code>.</p>
 </section>
 <section id="aquatic-preserves" class="level3">
 <h3 class="anchored" data-anchor-id="aquatic-preserves">Aquatic Preserves</h3>
 <p>Florida’s Aquatic Preserves are state-designated areas within submerged lands. The layer is downloaded from the FDEP ArcGIS open data service:</p>
 <pre><code>https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0.geojson</code></pre>
-<p>The GeoJSON is routed through GDAL <code>vectortranslate</code> to linearize any curve geometries before reading. The layer is saved to <code>data/aqprs.RData</code>.</p>
+<p>The GeoJSON is routed through GDAL <code>vectortranslate</code> to linearize any curve geometries before reading. The layer is saved to <code>data/01_inputs/aqprs.RData</code>.</p>
 </section>
 <section id="critical-lands-and-waters-identification-project-clip" class="level3">
 <h3 class="anchored" data-anchor-id="critical-lands-and-waters-identification-project-clip">Critical Lands and Waters Identification Project (CLIP)</h3>
@@ -2814,7 +2814,7 @@ window.Quarto = {
 <li><p>Subset: only priorities 1 through 3 are retained, lower-priority pixels are set to <code>NA</code>.</p></li>
 <li><p>Clip and vectorize: the raster is masked to the study area, converted to polygons with <code>terra::as.polygons()</code>, and validated with <code>sf::st_make_valid()</code>.</p></li>
 </ol>
-<p>The zip archive is deleted after processing. The final layer is saved to <code>data/clip.RData</code>.</p>
+<p>The zip archive is deleted after processing. The final layer is saved to <code>data/01_inputs/clip.RData</code>.</p>
 </section>
 <section id="merging-into-existing-and-proposed-conservation-lands" class="level3">
 <h3 class="anchored" data-anchor-id="merging-into-existing-and-proposed-conservation-lands">Merging into Existing and Proposed Conservation Lands</h3>
@@ -2849,7 +2849,7 @@ window.Quarto = {
 </tbody>
 </table>
 <p>The final <code>exst</code> is the union of the first and third operations. The final <code>prop</code> is the second operation only. This ensures the two layers are mutually exclusive with no spatial overlap.</p>
-<p>Both layers are cast to <code>POLYGON</code> geometry and saved to <code>data/exst.RData</code> and <code>data/prop.RData</code> respectively.</p>
+<p>Both layers are cast to <code>POLYGON</code> geometry and saved to <code>data/01_inputs/exst.RData</code> and <code>data/01_inputs/prop.RData</code> respectively.</p>
 </section>
 <section id="key-functions-3" class="level3">
 <h3 class="anchored" data-anchor-id="key-functions-3">Key Functions</h3>
@@ -2944,31 +2944,31 @@ window.Quarto = {
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>data/lulc_citrus.RData</code></td>
+<td><code>data/01_inputs/lulc_citrus.RData</code></td>
 <td><code>lulc_citrus</code></td>
 </tr>
 <tr class="even">
-<td><code>data/lulc_hernando.RData</code></td>
+<td><code>data/01_inputs/lulc_hernando.RData</code></td>
 <td><code>lulc_hernando</code></td>
 </tr>
 <tr class="odd">
-<td><code>data/lulc_hillsborough.RData</code></td>
+<td><code>data/01_inputs/lulc_hillsborough.RData</code></td>
 <td><code>lulc_hillsborough</code></td>
 </tr>
 <tr class="even">
-<td><code>data/lulc_manatee.RData</code></td>
+<td><code>data/01_inputs/lulc_manatee.RData</code></td>
 <td><code>lulc_manatee</code></td>
 </tr>
 <tr class="odd">
-<td><code>data/lulc_pasco.RData</code></td>
+<td><code>data/01_inputs/lulc_pasco.RData</code></td>
 <td><code>lulc_pasco</code></td>
 </tr>
 <tr class="even">
-<td><code>data/lulc_pinellas.RData</code></td>
+<td><code>data/01_inputs/lulc_pinellas.RData</code></td>
 <td><code>lulc_pinellas</code></td>
 </tr>
 <tr class="odd">
-<td><code>data/lulc_sarasota.RData</code></td>
+<td><code>data/01_inputs/lulc_sarasota.RData</code></td>
 <td><code>lulc_sarasota</code></td>
 </tr>
 </tbody>
