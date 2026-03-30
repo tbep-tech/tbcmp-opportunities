@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Tampa Bay Estuary Program">
-<meta name="dcterms.date" content="2026-03-27">
+<meta name="dcterms.date" content="2026-03-30">
 
 <title>Opportunity Analysis Methods</title>
 <style>
@@ -2359,6 +2359,16 @@ window.Quarto = {
   <li><a href="#output-1" id="toc-output-1" class="nav-link" data-scroll-target="#output-1">Output</a></li>
   <li><a href="#key-functions-2" id="toc-key-functions-2" class="nav-link" data-scroll-target="#key-functions-2">Key Functions</a></li>
   </ul></li>
+  <li><a href="#conservation-lands" id="toc-conservation-lands" class="nav-link" data-scroll-target="#conservation-lands">Conservation Lands</a>
+  <ul class="collapse">
+  <li><a href="#florida-conservation-lands-flma" id="toc-florida-conservation-lands-flma" class="nav-link" data-scroll-target="#florida-conservation-lands-flma">Florida Conservation Lands (FLMA)</a></li>
+  <li><a href="#future-forever-board-of-trustees-projects-ffbot" id="toc-future-forever-board-of-trustees-projects-ffbot" class="nav-link" data-scroll-target="#future-forever-board-of-trustees-projects-ffbot">Future Forever Board of Trustees Projects (FFBOT)</a></li>
+  <li><a href="#future-forever-acquired-lands-ffa" id="toc-future-forever-acquired-lands-ffa" class="nav-link" data-scroll-target="#future-forever-acquired-lands-ffa">Future Forever Acquired Lands (FFA)</a></li>
+  <li><a href="#aquatic-preserves" id="toc-aquatic-preserves" class="nav-link" data-scroll-target="#aquatic-preserves">Aquatic Preserves</a></li>
+  <li><a href="#critical-lands-and-waters-identification-project-clip" id="toc-critical-lands-and-waters-identification-project-clip" class="nav-link" data-scroll-target="#critical-lands-and-waters-identification-project-clip">Critical Lands and Waters Identification Project (CLIP)</a></li>
+  <li><a href="#merging-into-existing-and-proposed-conservation-lands" id="toc-merging-into-existing-and-proposed-conservation-lands" class="nav-link" data-scroll-target="#merging-into-existing-and-proposed-conservation-lands">Merging into Existing and Proposed Conservation Lands</a></li>
+  <li><a href="#key-functions-3" id="toc-key-functions-3" class="nav-link" data-scroll-target="#key-functions-3">Key Functions</a></li>
+  </ul></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul>
 </nav>
@@ -2384,7 +2394,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">March 27, 2026</p>
+      <p class="date">March 30, 2026</p>
     </div>
   </div>
   
@@ -2400,10 +2410,11 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>This document describes the methods used to create spatial input layers for the Tampa Bay Coastal Master Plan (TBCMP) habitat opportunity analysis. All processing is implemented in <code>R/funcs.R</code> and executed in <code>R/01_inputs.R</code>.</p>
 <p>Inputs are created for seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.</p>
+<p>Methods are reproduced from the Tampa Bay Estuary Program 2020 Habitat Master Plan update described in <span class="citation" data-cites="tbep0720">Environmental Science Associates (<a href="#ref-tbep0720" role="doc-biblioref">2020</a>)</span> and <span class="citation" data-cites="tbep0223">Beck et al. (<a href="#ref-tbep0223" role="doc-biblioref">2023</a>)</span>.</p>
 </section>
 <section id="coastal-stratum" class="level2">
 <h2 class="anchored" data-anchor-id="coastal-stratum">Coastal Stratum</h2>
-<p>The coastal stratum defines the zone of interest for reservation space in the Tampa Bay Habitat Master Plan. It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 most likely to be impacted by sea level rise.</p>
+<p>The coastal stratum defines the zone of interest for reservation space or those areas most vulnerable to sea level rise. It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 most likely to be impacted by sea level rise.</p>
 <p>The delineation follows three main steps:</p>
 <ol type="1">
 <li>Load a topobathymetric DEM covering the study area</li>
@@ -2758,14 +2769,130 @@ window.Quarto = {
 </table>
 </section>
 </section>
+<section id="conservation-lands" class="level2">
+<h2 class="anchored" data-anchor-id="conservation-lands">Conservation Lands</h2>
+<p>Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to <code>data-raw/fnai/</code>, clipped to the study area boundary, and projected to EPSG:3087.</p>
+<section id="florida-conservation-lands-flma" class="level3">
+<h3 class="anchored" data-anchor-id="florida-conservation-lands-flma">Florida Conservation Lands (FLMA)</h3>
+<p>The FLMA dataset is a statewide inventory of lands managed for conservation by federal, state, and local agencies. It is published by FNAI and updated quarterly.</p>
+<pre><code>https://www.fnai.org/shapefiles/flma_202503.zip</code></pre>
+<p>MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to <code>data/flma.RData</code>.</p>
+</section>
+<section id="future-forever-board-of-trustees-projects-ffbot" class="level3">
+<h3 class="anchored" data-anchor-id="future-forever-board-of-trustees-projects-ffbot">Future Forever Board of Trustees Projects (FFBOT)</h3>
+<p>The FFBOT layer contains lands targeted for acquisition by the Florida Board of Trustees under the Florida Forever conservation program. These are areas under active negotiation or approved for purchase but not yet acquired.</p>
+<pre><code>https://www.fnai.org/shapefiles/ffbot_202503.zip</code></pre>
+<p>The layer is saved to <code>data/ffbot.RData</code>.</p>
+</section>
+<section id="future-forever-acquired-lands-ffa" class="level3">
+<h3 class="anchored" data-anchor-id="future-forever-acquired-lands-ffa">Future Forever Acquired Lands (FFA)</h3>
+<p>The FFA layer contains Florida Forever parcels that have been successfully acquired and transferred to public ownership.</p>
+<pre><code>https://www.fnai.org/shapefiles/ff_acquired_202502.zip</code></pre>
+<p>The layer is saved to <code>data/ffa.RData</code>.</p>
+</section>
+<section id="aquatic-preserves" class="level3">
+<h3 class="anchored" data-anchor-id="aquatic-preserves">Aquatic Preserves</h3>
+<p>Florida’s Aquatic Preserves are state-designated areas within submerged lands. The layer is downloaded from the FDEP ArcGIS open data service:</p>
+<pre><code>https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0.geojson</code></pre>
+<p>The GeoJSON is routed through GDAL <code>vectortranslate</code> to linearize any curve geometries before reading. The layer is saved to <code>data/aqprs.RData</code>.</p>
+</section>
+<section id="critical-lands-and-waters-identification-project-clip" class="level3">
+<h3 class="anchored" data-anchor-id="critical-lands-and-waters-identification-project-clip">Critical Lands and Waters Identification Project (CLIP)</h3>
+<p>The CLIP version 4 layer, produced by FNAI, identifies Florida lands with the highest conservation value. Unlike the layers above, CLIP is distributed as a raster rather than a vector dataset. It is used here to delineate proposed conservation areas.</p>
+<pre><code>https://www.fnai.org/shapefiles/CLIP_v4_02.zip</code></pre>
+<p>The zip contains a File Geodatabase with a raster layer (<code>CLIPprio_v4</code>) covering Florida at 15 m resolution. Each pixel is assigned one of five priority levels, where Priority 1 represents the highest conservation value. A “No Resource Value Identified” class is stored as a masked (NoData) value and excluded from analysis.</p>
+<p>Processing steps:</p>
+<ol type="1">
+<li><p>Read and reproject: the <code>CLIPprio_v4</code> raster is read from the GDB using GDAL’s OpenFileGDB driver via <code>terra::rast()</code> and reprojected to EPSG:3087.</p></li>
+<li><p>Reclassify: pixel values are ordered inversely to priority rank: the highest pixel value corresponds to Priority 1 (highest conservation value). <code>terra::freq()</code> is used to identify the unique pixel values present in the raster, which are ranked and reclassified so that output values run 1 (highest) through 5 (lowest).</p></li>
+<li><p>Subset: only priorities 1 through 3 are retained, lower-priority pixels are set to <code>NA</code>.</p></li>
+<li><p>Clip and vectorize: the raster is masked to the study area, converted to polygons with <code>terra::as.polygons()</code>, and validated with <code>sf::st_make_valid()</code>.</p></li>
+</ol>
+<p>The zip archive is deleted after processing. The final layer is saved to <code>data/clip.RData</code>.</p>
+</section>
+<section id="merging-into-existing-and-proposed-conservation-lands" class="level3">
+<h3 class="anchored" data-anchor-id="merging-into-existing-and-proposed-conservation-lands">Merging into Existing and Proposed Conservation Lands</h3>
+<p>The five source layers are combined into two output layers: existing (<code>exst</code>) and proposed (<code>prop</code>) conservation lands.</p>
+<p>Existing conservation is the spatial union of FLMA, FFBOT, FFA, Aquatic Preserves, and the original Tampa Bay existing conservation layer from the TBEP open data portal. The original Tampa Bay layer from the 2020 Habitat Master Plan update is included to preserve any areas from prior analyses that are not yet captured in the current FNAI datasets.</p>
+<p>Proposed conservation is the spatial union of CLIP priority areas (priorities 1–3). These are lands not yet under formal protection but identified as potential conservation areas.</p>
+<p>Overlap correction ensures that any area appearing in both layers is assigned exclusively to existing conservation, since existing protections take precedence:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Operation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Existing − Proposed</td>
+<td>Existing areas with no proposed overlap</td>
+</tr>
+<tr class="even">
+<td>Proposed − Existing</td>
+<td>Proposed areas with no existing overlap assigned to <code>prop</code></td>
+</tr>
+<tr class="odd">
+<td>Existing ∩ Proposed</td>
+<td>Overlap areas assigned to <code>exst</code></td>
+</tr>
+</tbody>
+</table>
+<p>The final <code>exst</code> is the union of the first and third operations. The final <code>prop</code> is the second operation only. This ensures the two layers are mutually exclusive with no spatial overlap.</p>
+<p>Both layers are cast to <code>POLYGON</code> geometry and saved to <code>data/exst.RData</code> and <code>data/prop.RData</code> respectively.</p>
+</section>
+<section id="key-functions-3" class="level3">
+<h3 class="anchored" data-anchor-id="key-functions-3">Key Functions</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fetch_fnai()</code></td>
+<td>Download, cache, and clip FNAI shapefiles/GDBs</td>
+</tr>
+<tr class="even">
+<td><code>fetch_aqprs()</code></td>
+<td>Download and clip DEP Aquatic Preserves GeoJSON</td>
+</tr>
+<tr class="odd">
+<td><code>fetch_clip()</code></td>
+<td>Download, reclassify, clip, and vectorize the CLIP raster</td>
+</tr>
+<tr class="even">
+<td><code>build_prop_exst()</code></td>
+<td>Merge source layers into mutually exclusive existing and proposed layers</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
 <section id="references" class="level2 unnumbered">
 
 
 </section>
 
 <div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="ref-tbep0223" class="csl-entry" role="listitem">
+Beck, M. W., D. E. Robison, G. E. Raulerson, M. C. Burke, J. Saarinen, C. Sciarrino, E. T. Sherwood, and D. Tomasko. 2023. <span>“Addressing Climate Change and Development Pressures in an Urban Estuary Through Habitat Restoration Planning.”</span> <em>Frontiers in Ecology and Evolution</em> 11: 1070266. https://doi.org/<a href="https://doi.org/10.3389/fevo.2023.1070266">https://doi.org/10.3389/fevo.2023.1070266</a>.
+</div>
 <div id="ref-eleuterius1979" class="csl-entry" role="listitem">
 Eleuterius, L. N., and C. K. Eleuterius. 1979. <span>“Tide Levels and Salt Marsh Zonation.”</span> <em>Bulletin of Marine Science</em> 29 (3): 394–400.
+</div>
+<div id="ref-tbep0720" class="csl-entry" role="listitem">
+Environmental Science Associates. 2020. <span>“<span>Tampa Bay Estuary Program: 2020 Habitat Master Plan Update</span>.”</span> 07-20. St. Petersburg, Florida: Tampa Bay Estuary Program. <a href="https://drive.google.com/file/d/1Hp0l_qtbxp1JxKJoGatdyuANSzQrpL0I/view?usp=drivesdk">https://drive.google.com/file/d/1Hp0l_qtbxp1JxKJoGatdyuANSzQrpL0I/view?usp=drivesdk</a>.
 </div>
 <div id="ref-tbep0514" class="csl-entry" role="listitem">
 Ries, T., and S. Scheda. 2014. <span>“Master Plan for the Protection and Restoration of Freshwater Wetlands in the <span>T</span>ampa <span>B</span>ay Watershed, <span>F</span>lorida.”</span> 05-14. St. Petersburg, Florida: Tampa Bay Estuary Program. <a href="https://drive.google.com/file/d/1NjExx3M63zmypXN9D1Yc7DNkVpS-8FFm/view?usp=drivesdk">https://drive.google.com/file/d/1NjExx3M63zmypXN9D1Yc7DNkVpS-8FFm/view?usp=drivesdk</a>.

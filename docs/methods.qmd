@@ -18,9 +18,11 @@ This document describes the methods used to create spatial input layers for the 
 
 Inputs are created for seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.
 
+Methods are reproduced from the Tampa Bay Estuary Program 2020 Habitat Master Plan update described in @tbep0720 and @tbep0223.
+
 ## Coastal Stratum
 
-The coastal stratum defines the zone of interest for reservation space in the Tampa Bay Habitat Master Plan. It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 most likely to be impacted by sea level rise.
+The coastal stratum defines the zone of interest for reservation space or those areas most vulnerable to sea level rise. It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 most likely to be impacted by sea level rise.
 
 The delineation follows three main steps:
 
@@ -234,6 +236,101 @@ The final layer is saved to `data/salinity_layer.RData`.
 | `build_salinity_layer()` | Fetch WQP data, interpolate, classify, and vectorize |
 | `wqp_download_chunk()` | Download and cache a single WQP query chunk |
 | `wqp_read_zip_csv()` | Extract and parse columns from a WQP zip archive |
+
+## Conservation Lands
+
+Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to `data-raw/fnai/`, clipped to the study area boundary, and projected to EPSG:3087.
+
+### Florida Conservation Lands (FLMA)
+
+The FLMA dataset is a statewide inventory of lands managed for conservation by federal, state, and local agencies. It is published by FNAI and updated quarterly.
+
+```
+https://www.fnai.org/shapefiles/flma_202503.zip
+```
+
+MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to `data/flma.RData`.
+
+### Future Forever Board of Trustees Projects (FFBOT)
+
+The FFBOT layer contains lands targeted for acquisition by the Florida Board of Trustees under the Florida Forever conservation program. These are areas under active negotiation or approved for purchase but not yet acquired.
+
+```
+https://www.fnai.org/shapefiles/ffbot_202503.zip
+```
+
+The layer is saved to `data/ffbot.RData`.
+
+### Future Forever Acquired Lands (FFA)
+
+The FFA layer contains Florida Forever parcels that have been successfully acquired and transferred to public ownership.
+
+```
+https://www.fnai.org/shapefiles/ff_acquired_202502.zip
+```
+
+The layer is saved to `data/ffa.RData`.
+
+### Aquatic Preserves
+
+Florida's Aquatic Preserves are state-designated areas within submerged lands. The layer is downloaded from the FDEP ArcGIS open data service:
+
+```
+https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0.geojson
+```
+
+The GeoJSON is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. The layer is saved to `data/aqprs.RData`.
+
+### Critical Lands and Waters Identification Project (CLIP)
+
+The CLIP version 4 layer, produced by FNAI, identifies Florida lands with the highest conservation value. Unlike the layers above, CLIP is distributed as a raster rather than a vector dataset. It is used here to delineate proposed conservation areas.
+
+```
+https://www.fnai.org/shapefiles/CLIP_v4_02.zip
+```
+
+The zip contains a File Geodatabase with a raster layer (`CLIPprio_v4`) covering Florida at 15 m resolution. Each pixel is assigned one of five priority levels, where Priority 1 represents the highest conservation value. A "No Resource Value Identified" class is stored as a masked (NoData) value and excluded from analysis.
+
+Processing steps:
+
+1. Read and reproject: the `CLIPprio_v4` raster is read from the GDB using GDAL's OpenFileGDB driver via `terra::rast()` and reprojected to EPSG:3087.
+
+2. Reclassify: pixel values are ordered inversely to priority rank: the highest pixel value corresponds to Priority 1 (highest conservation value). `terra::freq()` is used to identify the unique pixel values present in the raster, which are ranked and reclassified so that output values run 1 (highest) through 5 (lowest).
+
+3. Subset: only priorities 1 through 3 are retained, lower-priority pixels are set to `NA`.
+
+4. Clip and vectorize: the raster is masked to the study area, converted to polygons with `terra::as.polygons()`, and validated with `sf::st_make_valid()`.
+
+The zip archive is deleted after processing. The final layer is saved to `data/clip.RData`.
+
+### Merging into Existing and Proposed Conservation Lands
+
+The five source layers are combined into two output layers: existing (`exst`) and proposed (`prop`) conservation lands.
+
+Existing conservation is the spatial union of FLMA, FFBOT, FFA, Aquatic Preserves, and the original Tampa Bay existing conservation layer from the TBEP open data portal. The original Tampa Bay layer from the 2020 Habitat Master Plan update is included to preserve any areas from prior analyses that are not yet captured in the current FNAI datasets.
+
+Proposed conservation is the spatial union of CLIP priority areas (priorities 1–3). These are lands not yet under formal protection but identified as potential conservation areas.
+
+Overlap correction ensures that any area appearing in both layers is assigned exclusively to existing conservation, since existing protections take precedence:
+
+| Operation | Result |
+|---|---|
+| Existing − Proposed | Existing areas with no proposed overlap |
+| Proposed − Existing | Proposed areas with no existing overlap assigned to `prop` |
+| Existing ∩ Proposed | Overlap areas assigned to `exst` |
+
+The final `exst` is the union of the first and third operations. The final `prop` is the second operation only. This ensures the two layers are mutually exclusive with no spatial overlap.
+
+Both layers are cast to `POLYGON` geometry and saved to `data/exst.RData` and `data/prop.RData` respectively.
+
+### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `fetch_fnai()` | Download, cache, and clip FNAI shapefiles/GDBs |
+| `fetch_aqprs()` | Download and clip DEP Aquatic Preserves GeoJSON |
+| `fetch_clip()` | Download, reclassify, clip, and vectorize the CLIP raster |
+| `build_prop_exst()` | Merge source layers into mutually exclusive existing and proposed layers |
 
 ## References
 
