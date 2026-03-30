@@ -431,3 +431,6 @@ save(prop, file = here('data', 'prop.RData'), compress = 'xz')
 save(exst, file = here('data', 'exst.RData'), compress = 'xz')
 
 # LULC -------------------------------------------------------------------
+
+# save 2023 lulc files to data folder by county
+fetch_lulc()

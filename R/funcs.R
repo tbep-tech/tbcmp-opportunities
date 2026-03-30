@@ -1150,6 +1150,72 @@ fetch_aqprs <- function(
     sf::st_make_valid()
 }
 
+#' Download and save 2023 SWFWMD land use/land cover shapefiles by county
+#'
+#' Downloads the 2023 Land Use Land Cover shapefiles for each of the seven
+#' TBCMP counties from the Southwest Florida Water Management District (SWFWMD)
+#' ArcGIS portal. Each county is saved as a separate \code{.RData} file in
+#' \code{data/} with an object name matching the file name (e.g.,
+#' \code{lulc_pinellas}). Zip files are deleted after processing; re-running
+#' will re-download because the zips are not cached.
+#'
+#' Source: \url{https://swfwmd.maps.arcgis.com}
+#'
+#' @return Called for its side-effect of writing \code{data/lulc_<county>.RData}
+#'   files. Returns \code{invisible(NULL)}.
+
+fetch_lulc <- function() {
+  lulc_items <- c(
+    Citrus = "ef11d576fcb44a44b8985a2bbc38a4f7",
+    Hernando = "86997a7802584735a8d8193f4a1af30f",
+    Hillsborough = "f95454790b724f7fb4a396c5de3c94d2",
+    Manatee = "5b0895fe575e4ab297e50546d99e407a",
+    Pasco = "81b1498949cd4ba8b9db52ca9e47653b",
+    Pinellas = "f0d97c30ada6487eb91196de088ee2fc",
+    Sarasota = "06b95375e3dc48e1b61a9b95a87aba30"
+  )
+
+  out_dir <- here::here("data")
+
+  for (county in names(lulc_items)) {
+    url <- paste0(
+      "https://swfwmd.maps.arcgis.com/sharing/rest/content/items/",
+      lulc_items[[county]],
+      "/data"
+    )
+    obj_name <- paste0("lulc_", tolower(county))
+    out_path <- file.path(out_dir, paste0(obj_name, ".RData"))
+
+    zip_path <- tempfile(fileext = ".zip")
+    on.exit(unlink(zip_path), add = TRUE)
+
+    message("Downloading LULC for ", county, " ...")
+    curl::curl_download(url, zip_path)
+
+    tmp_dir <- tempfile()
+    on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+    unzip(zip_path, exdir = tmp_dir)
+
+    shp <- list.files(
+      tmp_dir,
+      pattern = "\\.shp$",
+      full.names = TRUE,
+      recursive = TRUE
+    )[1]
+    assign(
+      obj_name,
+      sf::st_read(shp, quiet = TRUE) |>
+        sf::st_transform(3087L) |>
+        sf::st_make_valid()
+    )
+
+    save(list = obj_name, file = out_path, compress = "xz")
+    message("  Saved as ", basename(out_path))
+  }
+
+  invisible(NULL)
+}
+
 #' Fetch FNAI CLIP priorities raster and vector clipped to a county boundary
 #'
 #' Downloads the CLIP v4 zip from FNAI, extracts the priorities GDB, reads the
