@@ -1216,6 +1216,83 @@ fetch_lulc <- function() {
   invisible(NULL)
 }
 
+#' Download and save 2024 SWFWMD seagrass layers clipped by county
+#'
+#' Downloads the 2024 seagrass mapping layers for the Suncoast and Springs Coast
+#' study areas from the SWFWMD ArcGIS REST services, combines them into a single
+#' layer, then clips to each of the seven TBCMP county boundaries and saves one
+#' \code{.RData} file per county. County boundaries are loaded from
+#' \code{data/01_inputs/tbcmp_cnt.RData}. Both sources are assumed to have no
+#' spatial overlap; a \code{source} column is added before combining to
+#' preserve provenance.
+#'
+#' Sources:
+#' \itemize{
+#'   \item Suncoast: \url{https://data-swfwmd.opendata.arcgis.com/datasets/swfwmd::seagrass-in-2024/about}
+#'   \item Springs Coast: \url{https://data-swfwmd.opendata.arcgis.com/datasets/swfwmd::seagrass-in-2024-for-the-springs-coast/about}
+#' }
+#'
+#' @return Called for its side-effect of writing
+#'   \code{data/01_inputs/seagrass_<county>.RData} files. Returns
+#'   \code{invisible(NULL)}.
+
+fetch_seagrass <- function() {
+  urls <- c(
+    suncoast = "https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Environmental_Seagrass2018_sql/MapServer/3/query?outFields=*&where=1%3D1&f=geojson",
+    springs_coast = "https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4/query?outFields=*&where=1%3D1&f=geojson"
+  )
+
+  # Download both GeoJSON layers, linearize any curve geometries, tag source
+  layers <- lapply(names(urls), function(src) {
+    message("Downloading seagrass: ", src, " ...")
+    tmp <- tempfile(fileext = ".gpkg")
+    on.exit(unlink(tmp), add = TRUE)
+    sf::gdal_utils(
+      util = "vectortranslate",
+      source = urls[[src]],
+      destination = tmp,
+      options = c(
+        "-nlt",
+        "PROMOTE_TO_MULTI",
+        "-nlt",
+        "CONVERT_TO_LINEAR",
+        "-f",
+        "GPKG",
+        "-lco",
+        "SPATIAL_INDEX=NO"
+      )
+    )
+    sf::st_read(tmp, quiet = TRUE) |>
+      dplyr::mutate(source = src, .before = 1) |>
+      dplyr::select(source, FLUCCSCODE, FLUCCSDESC, geom)
+  })
+
+  seagrass_all <- dplyr::bind_rows(layers) |>
+    sf::st_transform(3087L) |>
+    sf::st_make_valid()
+
+  # Clip to each county and save
+  load(here::here("data", "01_inputs", "tbcmp_cnt.RData"))
+  out_dir <- here::here("data", "01_inputs")
+
+  for (county in tbcmp_cnt$county) {
+    obj_name <- paste0("seagrass_", tolower(county))
+    out_path <- file.path(out_dir, paste0(obj_name, ".RData"))
+
+    cnt_geom <- tbcmp_cnt[tbcmp_cnt$county == county, ]
+    assign(
+      obj_name,
+      sf::st_intersection(seagrass_all, sf::st_union(cnt_geom)) |>
+        sf::st_make_valid()
+    )
+
+    save(list = obj_name, file = out_path, compress = "xz")
+    message("  Saved as ", basename(out_path))
+  }
+
+  invisible(NULL)
+}
+
 #' Fetch FNAI CLIP priorities raster and vector clipped to a county boundary
 #'
 #' Downloads the CLIP v4 zip from FNAI, extracts the priorities GDB, reads the
@@ -1408,4 +1485,225 @@ build_prop_exst <- function(
     sf::st_cast('POLYGON')
 
   list(prop = prop, exst = exst)
+}
+
+# ---------------------------------------------------------------------------
+# Current layers helpers (ported from hmpu-workflow)
+# ---------------------------------------------------------------------------
+
+#' Fix geometries by union, cast to POLYGON, and zero-buffer
+#'
+#' Unions all features, buffers by zero to resolve topology errors, and casts
+#' to individual POLYGON geometries. Returns a bare \code{sfc} so attributes
+#' can be re-attached deliberately by the caller.
+#'
+#' @param dat An \code{sf} or \code{sfc} object.
+#' @return An \code{sfc_POLYGON}.
+
+fixgeo <- function(dat) {
+  dat |>
+    sf::st_union() |>
+    sf::st_buffer(dist = 0) |>
+    sf::st_geometry() |>
+    sf::st_cast('POLYGON') |>
+    sf::st_buffer(dist = 0)
+}
+
+#' Join FLUCCS codes to a LULC layer and reclassify coastal uplands
+#'
+#' Joins the FLUCCS lookup table to \code{lulcin} by \code{FLUCCSCODE},
+#' identifies native upland polygons that fall within the coastal stratum, and
+#' returns them as a separate \code{'Coastal Uplands'} category. The remaining
+#' native uplands are trimmed so there is no overlap.
+#'
+#' @param lulcin  An \code{sf} object with a \code{FLUCCSCODE} column.
+#' @param coastal An \code{sf} or \code{sfc} object for the coastal stratum.
+#' @param fluccs  A data frame with \code{FLUCCSCODE} and \code{HMPU_TARGETS}
+#'   columns.
+#' @return An \code{sf} object with a single \code{HMPU_TARGETS} column.
+
+add_coast_up <- function(lulcin, coastal, fluccs) {
+  lulc <- lulcin |>
+    dplyr::mutate(FLUCCSCODE = as.integer(FLUCCSCODE)) |>
+    dplyr::left_join(fluccs, by = 'FLUCCSCODE') |>
+    dplyr::select(HMPU_TARGETS)
+
+  uplands <- lulc |>
+    dplyr::filter(HMPU_TARGETS == 'Native Uplands') |>
+    sf::st_geometry() |>
+    sf::st_union() |>
+    sf::st_cast('POLYGON')
+
+  coastal_uplands <- uplands |>
+    sf::st_intersection(sf::st_union(sf::st_geometry(coastal))) |>
+    sf::st_union() |>
+    sf::st_cast('POLYGON') |>
+    sf::st_sf() |>
+    dplyr::mutate(HMPU_TARGETS = 'Coastal Uplands') |>
+    dplyr::select(HMPU_TARGETS) |>
+    sf::st_zm()
+
+  if (nrow(coastal_uplands) == 0) {
+    return(lulc)
+  }
+
+  lulcdiff <- sf::st_difference(
+    lulc,
+    sf::st_union(sf::st_geometry(coastal_uplands))
+  )
+  dplyr::bind_rows(lulcdiff, coastal_uplands)
+}
+
+#' Build the four current-condition layers for one county
+#'
+#' Given county-clipped input layers, produces the four spatial outputs used
+#' in the TBCMP opportunity analysis:
+#'
+#' \describe{
+#'   \item{\code{nativelyr}}{Existing and proposed conservation lands
+#'     containing native (non-restorable) habitat, with \code{HMPU_TARGETS}
+#'     and \code{typ} (\code{"Existing"}/\code{"Proposed"}) columns.}
+#'   \item{\code{restorelyr}}{Restorable lands within conservation, split into
+#'     sub-categories (Native Uplands, Coastal Uplands, Freshwater Wetlands,
+#'     Mangrove Forests/Salt Barrens, Salt Marshes) based on soil type, coastal
+#'     stratum position, and salinity zone.}
+#'   \item{\code{nativersrv}}{Bare \code{sfc}: native habitats in the coastal
+#'     stratum that are proposed for conservation or currently unprotected.}
+#'   \item{\code{restorersrv}}{Bare \code{sfc}: restorable lands in the coastal
+#'     stratum that are proposed for conservation or currently unprotected.}
+#' }
+#'
+#' @param lulc    \code{sf}. County LULC layer with a \code{FLUCCSCODE} column.
+#' @param coastal \code{sf} or \code{sfc}. Coastal stratum clipped to county.
+#' @param soils   \code{sf}. Soils layer clipped to county, with \code{gridcode}
+#'   column (100 = Xeric, 200/300 = Mesic/Hydric).
+#' @param salin   \code{sf}. Salinity layer clipped to county, with
+#'   \code{Descrip} column (e.g. \code{"0.5-18"} for the Juncus zone).
+#' @param prop    \code{sf} or \code{sfc}. Proposed conservation lands.
+#' @param exst    \code{sf} or \code{sfc}. Existing conservation lands.
+#' @param fluccs  Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
+#'   \code{HMPU_TARGETS} columns.
+#' @return A named list with elements \code{nativelyr}, \code{restorelyr},
+#'   \code{nativersrv}, and \code{restorersrv}.
+
+build_current_lyrs <- function(
+  lulc,
+  coastal,
+  soils,
+  salin,
+  prop,
+  exst,
+  fluccs
+) {
+  # Prepare LULC: FLUCCS join, coastal uplands reclassification, drop non-habitat
+  lulc_prep <- add_coast_up(lulc, coastal, fluccs) |>
+    dplyr::filter(!HMPU_TARGETS %in% c('Developed', 'Open Water'))
+  categories <- unique(lulc_prep$HMPU_TARGETS)
+  prop_geom <- sf::st_union(prop)
+  exst_geom <- sf::st_union(exst)
+  coastal_geom <- sf::st_union(coastal)
+
+  # Intersect each HMPU category with proposed and existing conservation
+  propall <- NULL
+  exstall <- NULL
+  for (cat in categories) {
+    tmp <- lulc_prep |>
+      dplyr::filter(HMPU_TARGETS == cat) |>
+      fixgeo()
+    propall <- dplyr::bind_rows(
+      propall,
+      sf::st_sf(geometry = sf::st_intersection(tmp, prop_geom) |> fixgeo()) |>
+        dplyr::mutate(HMPU_TARGETS = cat, typ = 'Proposed')
+    )
+    exstall <- dplyr::bind_rows(
+      exstall,
+      sf::st_sf(geometry = sf::st_intersection(tmp, exst_geom) |> fixgeo()) |>
+        dplyr::mutate(HMPU_TARGETS = cat, typ = 'Existing')
+    )
+  }
+
+  # Native layer: non-Restorable features in proposed/existing conservation
+  nativelyr <- dplyr::bind_rows(propall, exstall) |>
+    dplyr::filter(HMPU_TARGETS != 'Restorable')
+
+  # Restorable layer: split by soil type, tidal position, and salinity
+  restorable <- dplyr::bind_rows(propall, exstall) |>
+    dplyr::filter(HMPU_TARGETS == 'Restorable')
+  soilsforest <- soils |> dplyr::filter(gridcode == 100) |> fixgeo()
+  soilswetland <- soils |> dplyr::filter(gridcode != 100) |> fixgeo()
+  salinlo <- salin |> dplyr::filter(Descrip == '0.5-18') |> fixgeo()
+
+  restorelyr <- NULL
+  for (cur_typ in c('Proposed', 'Existing')) {
+    tmp <- restorable |>
+      dplyr::filter(typ == cur_typ) |>
+      fixgeo()
+
+    uplands <- sf::st_intersection(tmp, soilsforest)
+    coastal_ups <- sf::st_intersection(uplands, coastal_geom)
+    uplands <- sf::st_difference(uplands, sf::st_union(coastal_ups))
+    wetlands <- sf::st_intersection(tmp, soilswetland)
+    tidal_wetlands <- sf::st_intersection(wetlands, coastal_geom)
+    wetlands <- sf::st_difference(wetlands, sf::st_union(tidal_wetlands))
+    salt_marshes <- sf::st_intersection(tidal_wetlands, salinlo)
+    tidal_wetlands <- sf::st_difference(
+      tidal_wetlands,
+      sf::st_union(salt_marshes)
+    )
+
+    restorelyr <- dplyr::bind_rows(
+      restorelyr,
+      dplyr::bind_rows(
+        sf::st_sf(geometry = fixgeo(uplands)) |>
+          dplyr::mutate(HMPU_TARGETS = 'Native Uplands'),
+        sf::st_sf(geometry = fixgeo(coastal_ups)) |>
+          dplyr::mutate(HMPU_TARGETS = 'Coastal Uplands'),
+        sf::st_sf(geometry = fixgeo(wetlands)) |>
+          dplyr::mutate(HMPU_TARGETS = 'Freshwater Wetlands'),
+        sf::st_sf(geometry = fixgeo(tidal_wetlands)) |>
+          dplyr::mutate(HMPU_TARGETS = 'Mangrove Forests/Salt Barrens'),
+        sf::st_sf(geometry = fixgeo(salt_marshes)) |>
+          dplyr::mutate(HMPU_TARGETS = 'Salt Marshes')
+      ) |>
+        sf::st_zm(drop = TRUE) |>
+        dplyr::mutate(typ = cur_typ)
+    )
+  }
+
+  # Reservation layers: coastal stratum features proposed or unprotected
+  uniexstall <- exstall |> sf::st_union() |> sf::st_make_valid()
+
+  nativersrv <- nativelyr |>
+    dplyr::filter(typ == 'Proposed') |>
+    sf::st_intersection(coastal_geom) |>
+    fixgeo()
+
+  restorersrv <- restorelyr |>
+    dplyr::filter(typ == 'Proposed') |>
+    sf::st_intersection(coastal_geom) |>
+    fixgeo()
+
+  nativeunpro <- lulc_prep |>
+    dplyr::filter(HMPU_TARGETS != 'Restorable') |>
+    sf::st_intersection(coastal_geom) |>
+    fixgeo() |>
+    sf::st_difference(uniexstall) |>
+    fixgeo()
+
+  restoreunpro <- lulc_prep |>
+    dplyr::filter(HMPU_TARGETS == 'Restorable') |>
+    sf::st_intersection(coastal_geom) |>
+    fixgeo() |>
+    sf::st_difference(uniexstall) |>
+    fixgeo()
+
+  restorersrv <- c(sf::st_make_valid(restorersrv), restoreunpro) |> fixgeo()
+  nativersrv <- c(sf::st_make_valid(nativersrv), nativeunpro) |> fixgeo()
+
+  list(
+    nativelyr = nativelyr,
+    restorelyr = restorelyr,
+    nativersrv = nativersrv,
+    restorersrv = restorersrv
+  )
 }
