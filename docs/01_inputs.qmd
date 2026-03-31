@@ -1,0 +1,398 @@
+---
+title: "Inputs"
+---
+
+This step creates the spatial input layers used in the opportunity analysis. All processing is implemented in `R/funcs.R` and executed in `R/01_inputs.R`.
+
+## Coastal Stratum
+
+The coastal stratum defines the zone of interest for reservation space or those areas most vulnerable to sea level rise. It represents the land area between Mean Lower Low Water (MLLW) and 5 feet (1.524 m) NAVD88 most likely to be impacted by sea level rise.
+
+The delineation follows three main steps:
+
+1. Load a topobathymetric DEM covering the study area
+2. Derive a spatially varying MLLW offset surface using the NOAA VDatum API
+3. Mask the DEM to cells within the stratum bounds and convert to a polygon
+
+### Digital Elevation Model
+
+#### Source
+
+The DEM used is the **NOAA Continuously Updated DEM (CUDEM)**, accessed from the TBCMP ESRI FileGeodatabase:
+
+```
+T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb :: NOAA_CUDEM_tbcmp_extent_m
+```
+
+CUDEM is a topobathymetric product that seamlessly integrates LiDAR-derived land elevation with bathymetric soundings in nearshore areas. This makes it suitable for delineating the intertidal zone. The vertical datum is NAVD88, units are meters.
+
+#### Processing
+
+The raw CUDEM layer is 2 m resolution and covers the full TBCMP seven-county extent. To make it tractable for analysis:
+
+1. **Crop and mask** to the seven-county study area boundary
+2. **Aggregate** by a factor of 5 (mean) to produce a 10 m resolution raster
+
+The processed raster is saved as a Cloud Optimized GeoTIFF (COG) and hosted on Amazon S3 for reproducible access without requiring the source GDB:
+
+```
+https://tbcmp.s3.amazonaws.com/cudem_3087.tif
+```
+
+### Tidal Datum Offset Surface
+
+#### Rationale
+
+The lower bound of the coastal stratum is MLLW, not a fixed NAVD88 elevation. MLLW varies spatially due to differences in tidal range, bay geometry, and freshwater influence. Across the seven-county study area, MLLW ranges from roughly 0.12 m to −0.75 m NAVD88. Using a spatially varying surface rather than a single constant ensures the stratum boundary is physically meaningful everywhere.
+
+#### VDatum API
+
+Tidal datum offsets are obtained from the **NOAA VDatum web API**, which converts between vertical datums at arbitrary geographic locations. For each sample point, the API converts 0 m MLLW to its equivalent NAVD88 elevation, providing the local MLLW offset.
+
+API endpoint:
+
+```
+https://vdatum.noaa.gov/vdatumweb/api/convert
+```
+
+Key parameters:
+
+| Parameter | Value |
+|---|---|
+| Source vertical datum | MLLW |
+| Target vertical datum | NAVD88 |
+| Horizontal frame | NAD83_2011 |
+| Geoid | GEOID18 |
+| Source value | 0 m |
+
+Points outside VDatum coverage (e.g., far offshore or inland) return NOAA's sentinel value (−999999) and are treated as `NA`.
+
+#### Sample Grid
+
+A regular grid of sample points at ~5 km spacing (0.05° in geographic coordinates) is generated over the study area bounding box and clipped to the county boundaries. Requests are sent at ~2 per second to stay within NOAA's API rate limits.
+
+#### Interpolation
+
+Valid offset values are interpolated to a continuous surface using a **thin-plate spline (TPS)** from the `fields` package. TPS is appropriate here because:
+
+- Tidal datum variation is smooth and gradual
+- It exactly interpolates at observed points
+- It extrapolates smoothly to unsampled areas within the study extent
+
+The spline is predicted onto a 0.005° (~500 m) grid in EPSG:4326, then projected to EPSG:3087 and resampled to exactly match the DEM grid using bilinear interpolation.
+
+### Coastal Stratum Mask
+
+The stratum is defined as all DEM cells satisfying:
+
+$$\text{MLLW}_{xy} \leq \text{elevation}_{xy} \leq 1.524 \text{ m NAVD88}$$
+
+where $\text{MLLW}_{xy}$ is the spatially varying MLLW surface and 1.524 m is the 5 ft NAVD88 upper bound. Cells outside this range are set to `NA`.
+
+The raster mask is then vectorized (dissolved) to a single polygon using `terra::as.polygons()` and validated with `sf::st_make_valid()`.
+
+#### Output attributes
+
+| Field | Value |
+|---|---|
+| `stratum` | `"coastal"` |
+| `lower_datum` | `"MLLW (spatially varying, NAVD88)"` |
+| `upper_elev_ft` | `5` |
+| `upper_elev_m` | `1.524` |
+| `crs` | `"EPSG:3087"` |
+
+The final polygon is saved to `data/01_inputs/coastal_stratum.RData`.
+
+### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `query_vdatum()` | Single-point VDatum API call |
+| `build_vdatum_grid()` | Generate clipped sample grid |
+| `batch_query_vdatum()` | Loop over grid with rate limiting |
+| `build_mllw_surface()` | TPS interpolation + resample to DEM |
+| `make_coastal_stratum()` | Mask DEM and polygonize |
+
+## Soils Classification
+
+The soils layer classifies SSURGO map units across the seven-county study area into three hydrologic categories — Xeric, Mesic, and Hydric [@tbep0514]. These categories reflect the soil moisture regime and are used to characterize habitat restoration potential.
+
+### Source Data
+
+Soil map unit polygons are obtained from the **NRCS SSURGO** database via the Soil Data Access (SDA) web service, queried using the `soilDB` R package. Polygons are fetched by county to avoid API timeouts, with each county geometry subdivided into a regular tile grid (~0.1° tiles) and queried tile by tile.
+
+### Classification Method
+
+Map units are classified by matching the SSURGO map unit name (`muname`) against lists of Florida soil series associated with each hydrologic category. Matching uses case-insensitive regex with word-boundary anchors to avoid partial string collisions.
+
+The classification is applied in the following order of precedence:
+
+1. **Xeric** (gridcode 100) — matched first. Well-drained, upland sandy soils (e.g., Tavares, Astatula, Candler, Paola). Xeric is evaluated before Mesic so that complex map unit names with a leading Xeric series (e.g., "Tavares-Myakka complex") resolve correctly.
+
+2. **Hydric keyword override** (gridcode 300) — map unit names containing the terms `muck`, `depressional`, or `mostly wetland` are classified as Hydric regardless of series name. This handles series such as Pompano and Basinger that appear in both Mesic and Hydric contexts.
+
+3. **Hydric by series** (gridcode 300) — organic and permanently saturated mineral soils (e.g., Sellers, Kesson, Wulfert, Terra Ceia, Samsula, Weekiwachee, Hydraquents).
+
+4. **Mesic** (gridcode 200) — seasonally saturated flatwoods soils that are wet but not permanently inundated (e.g., Myakka, Immokalee, Pineda, Wauchula, EauGallie, Basinger).
+
+Map units not matching any series list (primarily water bodies) receive `NA` and are excluded from the output.
+
+### Output
+
+Classified polygons are clipped to the study area boundary and dissolved by gridcode, producing three polygons representing the spatial extent of each soil type.
+
+| gridcode | Descrip |
+|---|---|
+| 100 | Xeric |
+| 200 | Mesic |
+| 300 | Hydric |
+
+The final layer is saved to `data/01_inputs/soils.RData`.
+
+### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `fetch_soils_tiled()` | Fetch SSURGO polygons via tiled SDA queries |
+| `classify_soils_muname()` | Query munames from SDA and classify by series |
+| `build_soils_layer()` | Combine fetch, classify, clip, and dissolve |
+
+## Salinity
+
+The salinity layer classifies the study area into three salinity zones based on long-term mean surface water salinity. The zones are used to characterize estuarine habitat type and inform restoration potential.
+
+### Source Data
+
+Salinity observations are retrieved from the USEPA Water Quality Portal (WQP). Data are queried for the characteristic name `"Salinity"` over a multi-year period using the WQP REST API:
+
+```
+https://www.waterqualitydata.us/data/Result/search
+```
+
+Queries are issued county by county using WQP county codes to limit request sizes. Results are cached locally as zip archives in `data-raw/01_inputs/wqp_cache`.
+
+Units `psu`, `PSU`, `ppt`, and `ppth` are treated as equivalent at estuarine salinities and pooled before computing station means.
+
+### Station Aggregation
+
+For each monitoring station, the long-term mean salinity is computed across all observations in the query period. Stations are converted to an `sf` point layer in EPSG:3087.
+
+### Spatial Interpolation
+
+Station means are interpolated to a continuous surface using a thin-plate spline (TPS) from the `fields` package, fitted in geographic coordinates (EPSG:4326). The spline is predicted onto a regular grid (default spacing 0.001°, ~100 m), limited to a minimum of 0 psu, then projected to EPSG:3087 using bilinear resampling.
+
+### Classification
+
+The continuous salinity surface is reclassified into three zones following the original Tampa Bay Habitat Master Plan salinity layer schema and the 18 psu cutoff of @eleuterius1979:
+
+| Class | Descrip | Range |
+|---|---|---|
+| 0 | Fresh | < 0.5 psu |
+| 1 | Oligohaline/Mesohaline | 0.5 – 18 psu |
+| 3 | Polyhaline/Euhaline | ≥ 18 psu |
+
+Each class is vectorized from the classified raster using `terra::as.polygons()` (dissolved), clipped to the county boundary, and unioned to a single `MULTIPOLYGON` feature.
+
+### Boundary Smoothing
+
+Raster-to-vector conversion produces staircase artifacts along zone boundaries. To remove these, the combined three-class polygon layer is simplified using `rmapshaper::ms_simplify()` with topology preservation enabled. This method applies the Visvalingam-Whyatt algorithm across all features simultaneously, ensuring that shared boundaries between adjacent zones are continuous.
+
+The `simplify_keep` parameter (default 0.05) controls the fraction of vertices retained. Lower values produce smoother boundaries and higher values stay closer to the original raster edges.
+
+### Output
+
+The final layer contains one feature per salinity class with the actual minimum and maximum predicted salinity values within each zone.
+
+| Field | Description |
+|---|---|
+| `Classes` | Integer class code (0, 1, 3) |
+| `Value_Min` | Minimum predicted salinity within zone (psu) |
+| `Value_Max` | Maximum predicted salinity within zone (psu) |
+| `Descrip` | Zone label |
+| `crs` | EPSG:3087 |
+
+The final layer is saved to `data/01_inputs/salinity_layer.RData`.
+
+### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `build_salinity_layer()` | Fetch WQP data, interpolate, classify, and vectorize |
+| `wqp_download_chunk()` | Download and cache a single WQP query chunk |
+| `wqp_read_zip_csv()` | Extract and parse columns from a WQP zip archive |
+
+## Conservation Lands
+
+Five source layers are used to characterize existing and proposed conservation lands across the seven-county study area. Four are downloaded from the Florida Natural Areas Inventory (FNAI) and one is from the Florida Department of Environmental Protection (FDEP). Layers are cached to `data-raw/01_inputs/fnai/`, clipped to the study area boundary, and projected to EPSG:3087.
+
+### Florida Conservation Lands (FLMA)
+
+The FLMA dataset is a statewide inventory of lands managed for conservation by federal, state, and local agencies. It is published by FNAI and updated quarterly.
+
+```
+https://www.fnai.org/shapefiles/flma_202503.zip
+```
+
+MacDill Air Force Base is excluded from this layer as it is not a conservation land use. The filtered layer is saved to `data/01_inputs/flma.RData`.
+
+### Future Forever Board of Trustees Projects (FFBOT)
+
+The FFBOT layer contains lands targeted for acquisition by the Florida Board of Trustees under the Florida Forever conservation program. These are areas under active negotiation or approved for purchase but not yet acquired.
+
+```
+https://www.fnai.org/shapefiles/ffbot_202503.zip
+```
+
+The layer is saved to `data/01_inputs/ffbot.RData`.
+
+### Future Forever Acquired Lands (FFA)
+
+The FFA layer contains Florida Forever parcels that have been successfully acquired and transferred to public ownership.
+
+```
+https://www.fnai.org/shapefiles/ff_acquired_202502.zip
+```
+
+The layer is saved to `data/01_inputs/ffa.RData`.
+
+### Aquatic Preserves
+
+Florida's Aquatic Preserves are state-designated areas within submerged lands. The layer is downloaded from the FDEP ArcGIS open data service:
+
+```
+https://geodata.dep.state.fl.us/datasets/81841412d3984e9aac2c00c21e41d32e_0.geojson
+```
+
+The GeoJSON is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. The layer is saved to `data/01_inputs/aqprs.RData`.
+
+### Critical Lands and Waters Identification Project (CLIP)
+
+The CLIP version 4 layer, produced by FNAI, identifies Florida lands with the highest conservation value. Unlike the layers above, CLIP is distributed as a raster rather than a vector dataset. It is used here to delineate proposed conservation areas.
+
+```
+https://www.fnai.org/shapefiles/CLIP_v4_02.zip
+```
+
+The zip contains a File Geodatabase with a raster layer (`CLIPprio_v4`) covering Florida at 15 m resolution. Each pixel is assigned one of five priority levels, where Priority 1 represents the highest conservation value. A "No Resource Value Identified" class is stored as a masked (NoData) value and excluded from analysis.
+
+Processing steps:
+
+1. Read and reproject: the `CLIPprio_v4` raster is read from the GDB using GDAL's OpenFileGDB driver via `terra::rast()` and reprojected to EPSG:3087.
+
+2. Reclassify: pixel values are ordered inversely to priority rank: the highest pixel value corresponds to Priority 1 (highest conservation value). `terra::freq()` is used to identify the unique pixel values present in the raster, which are ranked and reclassified so that output values run 1 (highest) through 5 (lowest).
+
+3. Subset: only priorities 1 through 3 are retained, lower-priority pixels are set to `NA`.
+
+4. Clip and vectorize: the raster is masked to the study area, converted to polygons with `terra::as.polygons()`, and validated with `sf::st_make_valid()`.
+
+The zip archive is deleted after processing. The final layer is saved to `data/01_inputs/clip.RData`.
+
+### Merging into Existing and Proposed Conservation Lands
+
+The five source layers are combined into two output layers: existing (`exst`) and proposed (`prop`) conservation lands.
+
+Existing conservation is the spatial union of FLMA, FFBOT, FFA, Aquatic Preserves, and the original Tampa Bay existing conservation layer from the TBEP open data portal. The original Tampa Bay layer from the 2020 Habitat Master Plan update is included to preserve any areas from prior analyses that are not yet captured in the current FNAI datasets.
+
+Proposed conservation is the spatial union of CLIP priority areas (priorities 1–3). These are lands not yet under formal protection but identified as potential conservation areas.
+
+Overlap correction ensures that any area appearing in both layers is assigned exclusively to existing conservation, since existing protections take precedence:
+
+| Operation | Result |
+|---|---|
+| Existing − Proposed | Existing areas with no proposed overlap |
+| Proposed − Existing | Proposed areas with no existing overlap assigned to `prop` |
+| Existing ∩ Proposed | Overlap areas assigned to `exst` |
+
+The final `exst` is the union of the first and third operations. The final `prop` is the second operation only. This ensures the two layers are mutually exclusive with no spatial overlap.
+
+Both layers are cast to `POLYGON` geometry and saved to `data/01_inputs/exst.RData` and `data/01_inputs/prop.RData` respectively.
+
+### Key Functions
+
+| Function | Purpose |
+|---|---|
+| `fetch_fnai()` | Download, cache, and clip FNAI shapefiles/GDBs |
+| `fetch_aqprs()` | Download and clip DEP Aquatic Preserves GeoJSON |
+| `fetch_clip()` | Download, reclassify, clip, and vectorize the CLIP raster |
+| `build_prop_exst()` | Merge source layers into mutually exclusive existing and proposed layers |
+
+## Land Use/Land Cover
+
+Land use and land cover (LULC) data are obtained for the seven-county area. Data are downloaded separately for each county due to file size and saved as individual county-level RData files.
+
+### Source Data
+
+The 2023 LULC shapefiles are produced by the Southwest Florida Water Management District (SWFWMD) and distributed through the SWFWMD ArcGIS portal. Each county dataset is a separate item available via the ArcGIS sharing REST API:
+
+```
+https://swfwmd.maps.arcgis.com/sharing/rest/content/items/{item_id}/data
+```
+
+| County | Item ID |
+|---|---|
+| Citrus | `ef11d576fcb44a44b8985a2bbc38a4f7` |
+| Hernando | `86997a7802584735a8d8193f4a1af30f` |
+| Hillsborough | `f95454790b724f7fb4a396c5de3c94d2` |
+| Manatee | `5b0895fe575e4ab297e50546d99e407a` |
+| Pasco | `81b1498949cd4ba8b9db52ca9e47653b` |
+| Pinellas | `f0d97c30ada6487eb91196de088ee2fc` |
+| Sarasota | `06b95375e3dc48e1b61a9b95a87aba30` |
+
+Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the `FLUCCSCODE` field.
+
+### Processing
+
+Each county shapefile is downloaded as a zip archive, extracted, read with `sf::st_read()`, and reprojected to EPSG:3087. The zip and temporary extraction directory are deleted after processing. Each county is saved as a separate RData file with an object name matching the file name:
+
+| File | Object |
+|---|---|
+| `data/01_inputs/lulc_citrus.RData` | `lulc_citrus` |
+| `data/01_inputs/lulc_hernando.RData` | `lulc_hernando` |
+| `data/01_inputs/lulc_hillsborough.RData` | `lulc_hillsborough` |
+| `data/01_inputs/lulc_manatee.RData` | `lulc_manatee` |
+| `data/01_inputs/lulc_pasco.RData` | `lulc_pasco` |
+| `data/01_inputs/lulc_pinellas.RData` | `lulc_pinellas` |
+| `data/01_inputs/lulc_sarasota.RData` | `lulc_sarasota` |
+
+### Key Function
+
+| Function | Purpose |
+|---|---|
+| `fetch_lulc()` | Download, reproject, and save all seven county LULC shapefiles |
+
+## Seagrass
+
+Seagrass (subtidal) data are obtained for the seven-county area from two SWFWMD mapping surveys covering different portions of the study region. The two layers are combined into a single dataset and clipped per county, with one RData file per county.
+
+### Source Data
+
+The 2024 seagrass mapping layers are available from SWFWMD ArcGIS REST services. Two survey areas are used:
+
+| Survey Area | REST Service URL |
+|---|---|
+| Suncoast | `https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Environmental_Seagrass2018_sql/MapServer/3` |
+| Springs Coast | `https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4` |
+
+Each layer is queried as GeoJSON (`outFields=*&where=1=1&f=geojson`). Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the `FLUCCSCODE` field and the description in `FLUCCSDESC`.
+
+### Processing
+
+Each GeoJSON layer is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. Both layers are tagged with a `source` field (`suncoast` or `springs_coast`), combined with `dplyr::bind_rows()`, reprojected to EPSG:3087, and validated with `sf::st_make_valid()`.
+
+The combined layer is then clipped to each of the seven county boundaries using `sf::st_intersection()` and saved as a separate RData file:
+
+| File | Object |
+|---|---|
+| `data/01_inputs/seagrass_citrus.RData` | `seagrass_citrus` |
+| `data/01_inputs/seagrass_hernando.RData` | `seagrass_hernando` |
+| `data/01_inputs/seagrass_hillsborough.RData` | `seagrass_hillsborough` |
+| `data/01_inputs/seagrass_manatee.RData` | `seagrass_manatee` |
+| `data/01_inputs/seagrass_pasco.RData` | `seagrass_pasco` |
+| `data/01_inputs/seagrass_pinellas.RData` | `seagrass_pinellas` |
+| `data/01_inputs/seagrass_sarasota.RData` | `seagrass_sarasota` |
+
+### Key Function
+
+| Function | Purpose |
+|---|---|
+| `fetch_seagrass()` | Download, combine, clip, and save all seven county seagrass layers |

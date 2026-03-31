@@ -1,0 +1,28 @@
+---
+title: "Current Layers"
+---
+
+This step builds the four current spatial layers for each county using the input layers from Step 1. All processing is implemented in `R/funcs.R` and executed in `R/02_current_layers.R`.
+
+::: {.callout-note}
+Documentation in progress.
+:::
+
+## Overview
+
+For each county, the following layers are produced:
+
+| Layer | Description |
+|---|---|
+| `nativelyr` | Existing and proposed conservation lands containing native (non-restorable) habitat |
+| `restorelyr` | Restorable lands within conservation, split by soil type, tidal position, and salinity zone |
+| `nativersrv` | Native habitats in the coastal stratum that are proposed for conservation or currently unprotected |
+| `restorersrv` | Restorable lands in the coastal stratum that are proposed for conservation or currently unprotected |
+
+## Key Functions
+
+| Function | Purpose |
+|---|---|
+| `add_coast_up()` | Join FLUCCS codes and reclassify coastal uplands |
+| `build_current_lyrs()` | Build all four current-condition layers for one county |
+| `fixgeo()` | Union, cast to POLYGON, and zero-buffer geometries |

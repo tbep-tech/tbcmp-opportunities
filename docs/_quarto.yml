@@ -1,0 +1,24 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "TBCMP Opportunity Analysis"
+  author: "Tampa Bay Estuary Program"
+  date: today
+  chapters:
+    - index.qmd
+    - part: "Steps"
+      chapters:
+        - 01_inputs.qmd
+        - 02_current_layers.qmd
+
+bibliography: refs.bib
+
+format:
+  html:
+    theme: default
+    css: tbcmp-brand.css
+    toc: true
+    toc-depth: 3
+    code-fold: true
