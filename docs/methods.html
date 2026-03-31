@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Tampa Bay Estuary Program">
-<meta name="dcterms.date" content="2026-03-30">
+<meta name="dcterms.date" content="2026-03-31">
 
 <title>Opportunity Analysis Methods</title>
 <style>
@@ -2375,6 +2375,12 @@ window.Quarto = {
   <li><a href="#processing-1" id="toc-processing-1" class="nav-link" data-scroll-target="#processing-1">Processing</a></li>
   <li><a href="#key-function" id="toc-key-function" class="nav-link" data-scroll-target="#key-function">Key Function</a></li>
   </ul></li>
+  <li><a href="#seagrass" id="toc-seagrass" class="nav-link" data-scroll-target="#seagrass">Seagrass</a>
+  <ul class="collapse">
+  <li><a href="#source-data-3" id="toc-source-data-3" class="nav-link" data-scroll-target="#source-data-3">Source Data</a></li>
+  <li><a href="#processing-2" id="toc-processing-2" class="nav-link" data-scroll-target="#processing-2">Processing</a></li>
+  <li><a href="#key-function-1" id="toc-key-function-1" class="nav-link" data-scroll-target="#key-function-1">Key Function</a></li>
+  </ul></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul>
 </nav>
@@ -2400,7 +2406,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">March 30, 2026</p>
+      <p class="date">March 31, 2026</p>
     </div>
   </div>
   
@@ -2991,6 +2997,105 @@ window.Quarto = {
 <tr class="odd">
 <td><code>fetch_lulc()</code></td>
 <td>Download, reproject, and save all seven county LULC shapefiles</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="seagrass" class="level2">
+<h2 class="anchored" data-anchor-id="seagrass">Seagrass</h2>
+<p>Seagrass (subtidal) data are obtained for the seven-county area from two SWFWMD mapping surveys covering different portions of the study region. The two layers are combined into a single dataset and clipped per county, with one RData file per county.</p>
+<section id="source-data-3" class="level3">
+<h3 class="anchored" data-anchor-id="source-data-3">Source Data</h3>
+<p>The 2024 seagrass mapping layers are available from SWFWMD ArcGIS REST services. Two survey areas are used:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Survey Area</th>
+<th>REST Service URL</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Suncoast</td>
+<td><code>https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Environmental_Seagrass2018_sql/MapServer/3</code></td>
+</tr>
+<tr class="even">
+<td>Springs Coast</td>
+<td><code>https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4</code></td>
+</tr>
+</tbody>
+</table>
+<p>Each layer is queried as GeoJSON (<code>outFields=*&amp;where=1=1&amp;f=geojson</code>). Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the <code>FLUCCSCODE</code> field and the description in <code>FLUCCSDESC</code>.</p>
+</section>
+<section id="processing-2" class="level3">
+<h3 class="anchored" data-anchor-id="processing-2">Processing</h3>
+<p>Each GeoJSON layer is routed through GDAL <code>vectortranslate</code> to linearize any curve geometries before reading. Both layers are tagged with a <code>source</code> field (<code>suncoast</code> or <code>springs_coast</code>), combined with <code>dplyr::bind_rows()</code>, reprojected to EPSG:3087, and validated with <code>sf::st_make_valid()</code>.</p>
+<p>The combined layer is then clipped to each of the seven county boundaries using <code>sf::st_intersection()</code> and saved as a separate RData file:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>File</th>
+<th>Object</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>data/01_inputs/seagrass_citrus.RData</code></td>
+<td><code>seagrass_citrus</code></td>
+</tr>
+<tr class="even">
+<td><code>data/01_inputs/seagrass_hernando.RData</code></td>
+<td><code>seagrass_hernando</code></td>
+</tr>
+<tr class="odd">
+<td><code>data/01_inputs/seagrass_hillsborough.RData</code></td>
+<td><code>seagrass_hillsborough</code></td>
+</tr>
+<tr class="even">
+<td><code>data/01_inputs/seagrass_manatee.RData</code></td>
+<td><code>seagrass_manatee</code></td>
+</tr>
+<tr class="odd">
+<td><code>data/01_inputs/seagrass_pasco.RData</code></td>
+<td><code>seagrass_pasco</code></td>
+</tr>
+<tr class="even">
+<td><code>data/01_inputs/seagrass_pinellas.RData</code></td>
+<td><code>seagrass_pinellas</code></td>
+</tr>
+<tr class="odd">
+<td><code>data/01_inputs/seagrass_sarasota.RData</code></td>
+<td><code>seagrass_sarasota</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="key-function-1" class="level3">
+<h3 class="anchored" data-anchor-id="key-function-1">Key Function</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fetch_seagrass()</code></td>
+<td>Download, combine, clip, and save all seven county seagrass layers</td>
 </tr>
 </tbody>
 </table>
