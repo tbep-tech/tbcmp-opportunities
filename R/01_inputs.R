@@ -439,6 +439,7 @@ save(exst, file = here('data', '01_inputs', 'exst.RData'), compress = 'xz')
 # save 2023 lulc files to data folder by county
 fetch_lulc()
 
+# check county lulc
 load(file = here('data', '01_inputs', 'lulc_pinellas.RData'))
 load(file = here('data', '01_inputs', 'lulc_hillsborough.RData'))
 
@@ -472,3 +473,42 @@ leaflet() |>
 
 # Save combined seagrass clipped by county
 fetch_seagrass()
+
+# check county seagrass
+load(file = here('data', '01_inputs', 'seagrass_manatee.RData'))
+load(file = here('data', '01_inputs', 'seagrass_sarasota.RData'))
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
+
+co1_4326 <- st_transform(seagrass_manatee, 4326)
+co2_4326 <- st_transform(seagrass_sarasota, 4326)
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    data = co1_4326,
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    label = ~FLUCCSCODE,
+    group = 'co1'
+  ) |>
+  addPolygons(
+    data = co2_4326,
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    label = ~FLUCCSCODE,
+    group = 'co2'
+  ) |>
+  addPolygons(
+    data = st_transform(tbcmp_cnt, 4326),
+    fillOpacity = 0,
+    color = 'black',
+    weight = 1.5,
+    label = ~county,
+    group = 'Counties'
+  ) |>
+  addLayersControl(
+    overlayGroups = c('co1', 'co2', 'Counties'),
+    options = layersControlOptions(collapsed = FALSE)
+  )
