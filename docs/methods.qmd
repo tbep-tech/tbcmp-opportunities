@@ -376,5 +376,42 @@ Each county shapefile is downloaded as a zip archive, extracted, read with `sf::
 |---|---|
 | `fetch_lulc()` | Download, reproject, and save all seven county LULC shapefiles |
 
+## Seagrass
+
+Seagrass (subtidal) data are obtained for the seven-county area from two SWFWMD mapping surveys covering different portions of the study region. The two layers are combined into a single dataset and clipped per county, with one RData file per county.
+
+### Source Data
+
+The 2024 seagrass mapping layers are available from SWFWMD ArcGIS REST services. Two survey areas are used:
+
+| Survey Area | REST Service URL |
+|---|---|
+| Suncoast | `https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Environmental_Seagrass2018_sql/MapServer/3` |
+| Springs Coast | `https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4` |
+
+Each layer is queried as GeoJSON (`outFields=*&where=1=1&f=geojson`). Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the `FLUCCSCODE` field and the description in `FLUCCSDESC`.
+
+### Processing
+
+Each GeoJSON layer is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. Both layers are tagged with a `source` field (`suncoast` or `springs_coast`), combined with `dplyr::bind_rows()`, reprojected to EPSG:3087, and validated with `sf::st_make_valid()`.
+
+The combined layer is then clipped to each of the seven county boundaries using `sf::st_intersection()` and saved as a separate RData file:
+
+| File | Object |
+|---|---|
+| `data/01_inputs/seagrass_citrus.RData` | `seagrass_citrus` |
+| `data/01_inputs/seagrass_hernando.RData` | `seagrass_hernando` |
+| `data/01_inputs/seagrass_hillsborough.RData` | `seagrass_hillsborough` |
+| `data/01_inputs/seagrass_manatee.RData` | `seagrass_manatee` |
+| `data/01_inputs/seagrass_pasco.RData` | `seagrass_pasco` |
+| `data/01_inputs/seagrass_pinellas.RData` | `seagrass_pinellas` |
+| `data/01_inputs/seagrass_sarasota.RData` | `seagrass_sarasota` |
+
+### Key Function
+
+| Function | Purpose |
+|---|---|
+| `fetch_seagrass()` | Download, combine, clip, and save all seven county seagrass layers |
+
 ## References
 
