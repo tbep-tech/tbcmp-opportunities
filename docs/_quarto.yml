@@ -22,3 +22,4 @@ format:
     toc: true
     toc-depth: 3
     code-fold: true
+    number-depth: 1

@@ -1,6 +1,4 @@
----
-title: Overview {.unnumbered}
----
+# Overview {.unnumbered}
 
 This document describes the methods used to create spatial layers for the Tampa Bay Coastal Master Plan (TBCMP) habitat opportunity analysis. All processing is implemented in `R/funcs.R` and executed step by step in the corresponding `R/` scripts.
 
