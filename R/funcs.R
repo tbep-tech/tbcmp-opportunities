@@ -1707,3 +1707,346 @@ build_current_lyrs <- function(
     restorersrv = restorersrv
   )
 }
+
+# ---------------------------------------------------------------------------
+# Current extent table helpers (ported from hmpu-workflow)
+# ---------------------------------------------------------------------------
+
+#' Estimate LULC area in acres per HMPU target category
+#'
+#' Filters out subtidal and open-water FLUCCS codes, calls \code{add_coast_up()}
+#' to reclassify coastal uplands, then summarises area in acres by
+#' \code{HMPU_TARGETS}.
+#'
+#' @param lulcin An \code{sf} polygon with a \code{FLUCCSCODE} column.
+#' @param coastal An \code{sf} or \code{sfc} object for the coastal stratum.
+#' @param fluccs A data frame with \code{FLUCCSCODE} and \code{HMPU_TARGETS} columns.
+#' @param sumout Logical. If \code{TRUE} (default) return a summary data frame;
+#'   if \code{FALSE} return the prepared \code{sf} layer.
+#'
+#' @return A data frame with columns \code{HMPU_TARGETS} and \code{Acres}, or
+#'   the prepared \code{sf} layer when \code{sumout = FALSE}.
+
+lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
+  # FLUCCS codes to remove: subtidal and open-water features tracked separately
+  # (bays/estuaries, major water bodies, gulf, tidal flats, oyster bars,
+  # submerged sand, patchy/continuous seagrass, attached algae, hardbottom)
+  cds <- c(
+    5400,
+    5700,
+    5720,
+    6510,
+    6540,
+    7210,
+    9113,
+    9116,
+    9121,
+    9510,
+    9511,
+    9512,
+    9513,
+    9514,
+    9515
+  )
+
+  out <- lulcin %>%
+    dplyr::mutate(FLUCCSCODE = as.integer(FLUCCSCODE)) %>%
+    dplyr::filter(!FLUCCSCODE %in% cds) %>%
+    add_coast_up(coastal, fluccs)
+
+  if (!sumout) {
+    return(out)
+  }
+
+  out %>%
+    dplyr::mutate(
+      Acres = sf::st_area(.),
+      Acres = units::set_units(Acres, acres),
+      Acres = as.numeric(Acres)
+    ) %>%
+    sf::st_set_geometry(NULL) %>%
+    dplyr::group_by(HMPU_TARGETS) %>%
+    dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
+    dplyr::arrange(HMPU_TARGETS)
+}
+
+#' Estimate subtidal area in acres per HMPU target category
+#'
+#' Joins FLUCCS codes to a seagrass / subtidal layer and summarises area in
+#' acres by \code{HMPU_TARGETS}.
+#'
+#' @param subtin An \code{sf} polygon with a \code{FLUCCSCODE} column.
+#' @param fluccs A data frame with \code{FLUCCSCODE} and \code{HMPU_TARGETS} columns.
+#' @param sumout Logical. If \code{TRUE} (default) return a summary data frame;
+#'   if \code{FALSE} return the prepared \code{sf} layer.
+#'
+#' @return A data frame with columns \code{HMPU_TARGETS} and \code{Acres}, or
+#'   the prepared \code{sf} layer when \code{sumout = FALSE}.
+
+subt_est <- function(subtin, fluccs, sumout = TRUE) {
+  out <- subtin %>%
+    dplyr::mutate(FLUCCSCODE = as.integer(FLUCCSCODE)) %>%
+    dplyr::left_join(fluccs, by = 'FLUCCSCODE') %>%
+    dplyr::select(HMPU_TARGETS)
+
+  if (!sumout) {
+    return(out)
+  }
+
+  out %>%
+    dplyr::mutate(
+      Acres = sf::st_area(.),
+      Acres = units::set_units(Acres, acres),
+      Acres = as.numeric(Acres)
+    ) %>%
+    sf::st_set_geometry(NULL) %>%
+    dplyr::group_by(HMPU_TARGETS) %>%
+    dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
+    dplyr::arrange(HMPU_TARGETS)
+}
+
+#' Build a current extent flextable for one spatial unit
+#'
+#' Computes current extent, native conservation, and restorable land summaries
+#' from the input layers and assembles them into a formatted \code{flextable}.
+#' Subtidal features (seagrasses, oyster bars) are derived from \code{subt}
+#' via \code{subt_est()}. Hard bottom, artificial reefs, tidal tributaries, and
+#' living shorelines are not used in the TBCMP 7-county workflow.
+#'
+#' @param lulc     \code{sf}. LULC layer with \code{FLUCCSCODE} column.
+#' @param subt     \code{sf}. Seagrass / subtidal layer with \code{FLUCCSCODE}.
+#' @param coastal  \code{sf} or \code{sfc}. Coastal stratum.
+#' @param fluccs   Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
+#'   \code{HMPU_TARGETS} columns.
+#' @param strata   Data frame. Stratification lookup with \code{Category} and
+#'   \code{HMPU_TARGETS} columns (as built in \code{01_inputs.R}).
+#' @param nativelyr  \code{sf}. Native habitats in conservation lands (from
+#'   \code{build_current_lyrs()}).
+#' @param restorelyr \code{sf}. Restorable lands in conservation (from
+#'   \code{build_current_lyrs()}).
+#' @param cap      Character. Table caption string.
+#'
+#' @return A \code{flextable} object.
+
+curex_fun <- function(
+  lulc,
+  subt,
+  coastal,
+  fluccs,
+  strata,
+  nativelyr,
+  restorelyr,
+  cap
+) {
+  # current lulc and subtidal summaries
+  lulcsum <- lulc_est(lulc, coastal, fluccs)
+  subtsum <- subt_est(subt, fluccs)
+
+  # current summary: join all sources to strata so every target row is present
+  cursum <- dplyr::bind_rows(lulcsum, subtsum) %>%
+    dplyr::mutate(unis = 'ac', `Current Extent` = Acres) %>%
+    dplyr::left_join(strata, ., by = 'HMPU_TARGETS') %>%
+    dplyr::filter(!HMPU_TARGETS %in% 'Total Intertidal') %>%
+    dplyr::mutate(
+      unis = dplyr::if_else(is.na(unis), 'ac', unis),
+      `Current Extent` = dplyr::if_else(
+        is.na(`Current Extent`),
+        0,
+        `Current Extent`
+      )
+    ) %>%
+    dplyr::select(Category, HMPU_TARGETS, unis, `Current Extent`) %>%
+    dplyr::arrange(Category, HMPU_TARGETS)
+
+  # native habitats in conservation lands summary
+  nativesum <- nativelyr %>%
+    dplyr::mutate(
+      Acres = sf::st_area(.),
+      Acres = units::set_units(Acres, acres),
+      Acres = as.numeric(Acres),
+      typ = paste('native', typ),
+      typ = factor(typ, levels = c('native Existing', 'native Proposed'))
+    ) %>%
+    sf::st_set_geometry(NULL) %>%
+    dplyr::group_by(typ, HMPU_TARGETS) %>%
+    dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
+    dplyr::arrange(typ, HMPU_TARGETS) %>%
+    tidyr::spread(typ, Acres, fill = 0, drop = FALSE)
+
+  # restorable lands in conservation summary
+  restoresum <- restorelyr %>%
+    dplyr::mutate(
+      Acres = sf::st_area(.),
+      Acres = units::set_units(Acres, acres),
+      Acres = as.numeric(Acres),
+      typ = paste('restorable', typ),
+      typ = factor(
+        typ,
+        levels = c('restorable Existing', 'restorable Proposed')
+      )
+    ) %>%
+    sf::st_set_geometry(NULL) %>%
+    dplyr::group_by(typ, HMPU_TARGETS) %>%
+    dplyr::summarise(Acres = sum(Acres, na.rm = TRUE), .groups = 'drop') %>%
+    dplyr::arrange(typ, HMPU_TARGETS)
+
+  # split 'Mangrove Forests/Salt Barrens' and 'Freshwater Wetlands' into
+  # their two constituent HMPU targets so every target row appears in the table
+  duplab1 <- 'Mangrove Forests/Salt Barrens'
+  dups1 <- restoresum %>%
+    dplyr::filter(HMPU_TARGETS %in% duplab1) %>%
+    dplyr::mutate(HMPU_TARGETS = 'Mangrove Forests')
+
+  duplab2 <- 'Freshwater Wetlands'
+  dups2 <- restoresum %>%
+    dplyr::filter(HMPU_TARGETS %in% duplab2) %>%
+    dplyr::mutate(HMPU_TARGETS = 'Non-Forested Freshwater Wetlands')
+
+  restoresum <- restoresum %>%
+    dplyr::bind_rows(dups1) %>%
+    dplyr::bind_rows(dups2) %>%
+    dplyr::mutate(
+      HMPU_TARGETS = dplyr::case_when(
+        HMPU_TARGETS %in% duplab1 ~ 'Salt Barrens',
+        HMPU_TARGETS %in% duplab2 ~ 'Forested Freshwater Wetlands',
+        TRUE ~ HMPU_TARGETS
+      )
+    ) %>%
+    tidyr::spread(typ, Acres, fill = 0, drop = FALSE) %>%
+    dplyr::mutate(
+      `total restorable` = `restorable Existing` + `restorable Proposed`
+    )
+
+  curexcmp_fun(cursum, nativesum, restoresum, strata, cap)
+}
+
+#' Compile current extent table from pre-computed summaries
+#'
+#' Combines current extent, native conservation, and restorable land summaries
+#' into a single formatted \code{flextable}. Called internally by
+#' \code{curex_fun()}.
+#'
+#' @param cursum     Data frame. Current extent summary (output of the first
+#'   section of \code{curex_fun()}).
+#' @param nativesum  Data frame. Native conservation summary.
+#' @param restoresum Data frame. Restorable land summary.
+#' @param strata     Data frame. Stratification lookup.
+#' @param cap        Character. Caption string.
+#'
+#' @return A \code{flextable} object.
+
+curexcmp_fun <- function(cursum, nativesum, restoresum, strata, cap) {
+  allsum <- cursum %>%
+    dplyr::left_join(nativesum, by = 'HMPU_TARGETS') %>%
+    dplyr::left_join(restoresum, by = 'HMPU_TARGETS') %>%
+    tidyr::gather('var', 'val', -Category, -HMPU_TARGETS, -unis) %>%
+    dplyr::mutate(
+      val = dplyr::case_when(
+        !is.na(val) ~ paste(prettyNum(round(val, 0), big.mark = ','), unis),
+        TRUE ~ 'N/A'
+      ),
+      val = dplyr::case_when(
+        (HMPU_TARGETS %in% 'Salt Marshes') &
+          (var %in%
+            c(
+              'total restorable',
+              'restorable Existing',
+              'restorable Proposed'
+            )) ~
+          paste(val, '(JU)'),
+        TRUE ~ val
+      ),
+      Category = factor(
+        Category,
+        levels = c('Subtidal', 'Intertidal', 'Supratidal')
+      ),
+      HMPU_TARGETS = factor(HMPU_TARGETS, levels = levels(strata$HMPU_TARGETS))
+    ) %>%
+    tidyr::spread(var, val) %>%
+    dplyr::select(-unis) %>%
+    dplyr::mutate(
+      `native Existing` = dplyr::case_when(
+        Category == 'Subtidal' ~ `Current Extent`,
+        TRUE ~ `native Existing`
+      )
+    ) %>%
+    dplyr::select(
+      Category,
+      HMPU_TARGETS,
+      `Current Extent`,
+      `native Existing`,
+      `native Proposed`,
+      `total restorable`,
+      `restorable Existing`,
+      `restorable Proposed`
+    )
+
+  cap <- flextable::as_paragraph(
+    flextable::as_chunk(
+      cap,
+      props = flextable::fp_text_default(font.size = 14, bold = TRUE)
+    )
+  )
+
+  allsum %>%
+    flextable::as_grouped_data(groups = 'Category') %>%
+    dplyr::mutate(
+      HMPU_TARGETS = dplyr::case_when(
+        is.na(HMPU_TARGETS) ~ Category,
+        TRUE ~ HMPU_TARGETS
+      )
+    ) %>%
+    dplyr::select(-Category) %>%
+    flextable::flextable() %>%
+    flextable::set_header_labels(
+      HMPU_TARGETS = 'Habitat Type',
+      `native Existing` = 'Existing Conservation Lands',
+      `native Proposed` = 'Proposed Conservation Lands',
+      `total restorable` = 'Total Restoration Opportunity',
+      `restorable Existing` = 'Existing Conservation Lands Restoration Opportunity',
+      `restorable Proposed` = 'Proposed Conservation Lands Restoration Opportunity'
+    ) %>%
+    flextable::merge_at(i = 1, part = 'body') %>%
+    flextable::merge_at(i = 5, part = 'body') %>%
+    flextable::merge_at(i = 9, part = 'body') %>%
+    flextable::merge_at(i = 6:7, j = 5, part = 'body') %>%
+    flextable::merge_at(i = 6:7, j = 6, part = 'body') %>%
+    flextable::merge_at(i = 6:7, j = 7, part = 'body') %>%
+    flextable::merge_at(i = 11:12, j = 5, part = 'body') %>%
+    flextable::merge_at(i = 11:12, j = 6, part = 'body') %>%
+    flextable::merge_at(i = 11:12, j = 7, part = 'body') %>%
+    flextable::add_header_row(
+      colwidths = c(1, 3, 3),
+      values = c('', 'Native Habitats', 'Restorable Habitats')
+    ) %>%
+    flextable::add_footer_lines(values = '') %>%
+    flextable::add_footer_lines(
+      values = flextable::as_paragraph(
+        'N/A - Not Applicable; JU - Potential ',
+        flextable::as_i('Juncus'),
+        ' Marsh Opportunity'
+      )
+    ) %>%
+    flextable::fontsize(size = 8, part = 'footer') %>%
+    flextable::align(align = 'center', part = 'header') %>%
+    flextable::align(
+      i = c(2:4, 6:8, 10:13),
+      j = 2:7,
+      align = 'center',
+      part = 'body'
+    ) %>%
+    flextable::bg(i = c(1, 5, 9), bg = '#00806E', part = 'body') %>%
+    flextable::color(i = c(1, 5, 9), color = 'white', part = 'body') %>%
+    flextable::bg(i = 1, bg = '#004F7E', part = 'header') %>%
+    flextable::bg(i = 2, j = 1, bg = '#004F7E', part = 'header') %>%
+    flextable::color(i = 1, color = 'white', part = 'header') %>%
+    flextable::color(i = 2, j = 1, color = 'white', part = 'header') %>%
+    flextable::border_outer(part = 'body') %>%
+    flextable::border_outer(part = 'header') %>%
+    flextable::border_inner_h(part = 'body') %>%
+    flextable::border_inner_v(part = 'body') %>%
+    flextable::border_inner_h(part = 'header') %>%
+    flextable::border_inner_v(part = 'header') %>%
+    flextable::set_caption(caption = cap) %>%
+    flextable::font(part = 'all', fontname = 'Roboto')
+}

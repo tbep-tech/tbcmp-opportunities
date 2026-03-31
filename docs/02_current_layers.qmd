@@ -2,27 +2,141 @@
 title: "Current Layers"
 ---
 
-This step builds the four current spatial layers for each county using the input layers from Step 1. All processing is implemented in `R/funcs.R` and executed in `R/02_current_layers.R`.
-
-::: {.callout-note}
-Documentation in progress.
-:::
+This step builds four current-condition spatial layers for each of the seven TBCMP counties using the input layers from Step 1. All processing is implemented in `R/funcs.R` and executed in `R/02_current_layers.R`.
 
 ## Overview
 
-For each county, the following layers are produced:
+For each county, four layers are produced that together characterize the current state of the coastal landscape in terms of habitat type, protection status, and restoration potential:
 
 | Layer | Description |
 |---|---|
-| `nativelyr` | Existing and proposed conservation lands containing native (non-restorable) habitat |
-| `restorelyr` | Restorable lands within conservation, split by soil type, tidal position, and salinity zone |
+| `nativelyr` | Native (non-restorable) habitats within existing or proposed conservation lands |
+| `restorelyr` | Restorable lands within existing or proposed conservation, sub-classified by habitat type |
 | `nativersrv` | Native habitats in the coastal stratum that are proposed for conservation or currently unprotected |
 | `restorersrv` | Restorable lands in the coastal stratum that are proposed for conservation or currently unprotected |
+
+The native and restorable layers describe what is already within conservation boundaries. The reservation layers (`nativersrv`, `restorersrv`) describe what lies in the coastal stratum and is either proposed for future conservation or is currently unprotected — these represent the primary opportunity space for the analysis.
+
+## Input Layers
+
+Seven county-wide layers from Step 1 are loaded at the start of the script:
+
+| Object | File | Description |
+|---|---|---|
+| `fluccs` | `data/01_inputs/fluccs.RData` | FLUCCS code lookup table |
+| `tbcmp_cnt` | `data/01_inputs/tbcmp_cnt.RData` | Seven-county boundary polygons |
+| `coastal_stratum` | `data/01_inputs/coastal_stratum.RData` | Coastal stratum (MLLW to 5 ft NAVD88) |
+| `soils` | `data/01_inputs/soils.RData` | Soils classified as Xeric (100), Mesic (200), or Hydric (300) |
+| `salinity_layer` | `data/01_inputs/salinity_layer.RData` | Three-class salinity zones |
+| `prop` | `data/01_inputs/prop.RData` | Proposed conservation lands |
+| `exst` | `data/01_inputs/exst.RData` | Existing conservation lands |
+
+Land use/land cover (LULC) is loaded separately for each county within the processing loop, as it is too large to hold all seven counties in memory simultaneously.
+
+## County Processing Loop
+
+The script loops over all seven counties in `tbcmp_cnt`. For each county, the following steps are performed:
+
+1. Load the county LULC layer (`lulc_<county>.RData`)
+2. Clip all shared layers to the county boundary using `sf::st_intersection()`
+3. Call `build_current_lyrs()` to produce the four output layers
+4. Save each layer as `<layer>_<county>.RData` in `data/02_current_layers/`
+
+Clipping to the county boundary before processing reduces memory and computation time, and ensures that spatial operations in `build_current_lyrs()` do not need to handle the full seven-county extent.
+
+## LULC Preparation
+
+Before any conservation overlay is applied, the LULC layer is prepared by `add_coast_up()`. This function performs two tasks:
+
+**FLUCCS join**: The FLUCCS code lookup table is joined to the LULC polygons by `FLUCCSCODE`, attaching `HMPU_TARGETS` habitat category labels to each polygon (e.g., Native Uplands, Restorable, Mangrove Forests, Salt Marshes, Seagrasses, etc.).
+
+**Coastal Uplands reclassification**: Native Upland polygons that spatially overlap the coastal stratum are extracted and relabelled as `Coastal Uplands`. This separates upland habitats within the tidal zone from those further inland, as they have different vulnerability and restoration context. The remaining Native Uplands layer is trimmed to remove the overlap so there is no double-counting.
+
+**Developed and Open Water removal**: Polygons classified as `Developed` or `Open Water` are dropped from the prepared layer. These categories are not relevant to habitat conservation or restoration potential.
+
+## Conservation Overlay
+
+`build_current_lyrs()` intersects the prepared LULC with the conservation land boundaries to produce the native and restorable layers.
+
+For each HMPU habitat category, the LULC geometry is intersected with:
+
+- **Existing conservation** (`exst`) — producing `exstall`
+- **Proposed conservation** (`prop`) — producing `propall`
+
+Each resulting feature retains its `HMPU_TARGETS` category label and a `typ` field (`"Existing"` or `"Proposed"`).
+
+`nativelyr` is the union of `propall` and `exstall` for all categories except `Restorable`. It represents the current standing stock of native habitat that is already under some form of conservation protection.
+
+## Restorable Land Classification
+
+`restorelyr` is built from the `Restorable` category features in `propall` and `exstall`. These are degraded or altered lands within conservation boundaries that have potential for ecological restoration. For each conservation type (`Existing` and `Proposed`), restorable areas are sub-classified into five habitat categories using the soils layer, coastal stratum, and salinity zone as a three-stage spatial filter:
+
+### Stage 1 — Soil type
+
+The soils layer splits restorable land into two groups:
+
+- **Xeric soils** (gridcode 100): well-drained upland soils → candidate upland habitats
+- **Non-xeric soils** (gridcode 200 or 300): seasonally or permanently saturated soils → candidate wetland habitats
+
+### Stage 2 — Tidal position
+
+Each soil group is then split by intersection with the coastal stratum:
+
+- Xeric soils **inside** the coastal stratum → `Coastal Uplands`
+- Xeric soils **outside** the coastal stratum → `Native Uplands`
+- Non-xeric soils **inside** the coastal stratum → tidal wetlands (further classified below)
+- Non-xeric soils **outside** the coastal stratum → `Freshwater Wetlands`
+
+### Stage 3 — Salinity zone (tidal wetlands only)
+
+Tidal wetlands (non-xeric soils within the coastal stratum) are split by intersection with the salinity layer:
+
+- Tidal wetlands in the **0.5–18 psu zone** → `Salt Marshes` (dominated by *Juncus* and *Spartina*; the 18 psu boundary follows @eleuterius1979)
+- Tidal wetlands in **all other salinity zones** (Fresh < 0.5 psu and Euhaline > 18 psu) → `Mangrove Forests/Salt Barrens`
+
+The classification logic is summarised in the decision tree below:
+
+```
+Restorable land
+├── Xeric soils (gridcode 100)
+│   ├── Inside coastal stratum  →  Coastal Uplands
+│   └── Outside coastal stratum →  Native Uplands
+└── Non-xeric soils (gridcode 200/300)
+    ├── Outside coastal stratum →  Freshwater Wetlands
+    └── Inside coastal stratum
+        ├── Salinity 0.5–18 psu →  Salt Marshes
+        └── All other salinity  →  Mangrove Forests/Salt Barrens
+```
+
+## Reservation Layers
+
+`nativersrv` and `restorersrv` identify the coastal opportunity space — areas that are either already proposed for conservation or are currently unprotected within the coastal stratum.
+
+Both layers are built by taking the relevant features from `nativelyr` or `restorelyr` (filtered to `typ == "Proposed"`), intersecting with the coastal stratum, then unioning with the corresponding unprotected coastal features. Unprotected features are defined as coastal stratum land that is not within `exst` (existing conservation), derived directly from the LULC layer (native or restorable, respectively).
+
+In other words, for each layer:
+
+$$\text{reservation} = (\text{proposed conservation} \cap \text{coastal stratum}) \cup (\text{unprotected} \cap \text{coastal stratum})$$
+
+These layers represent the total coastal area available for conservation action — either by securing proposed acquisitions or by identifying currently unprotected coastal habitat.
+
+## Output Files
+
+All output files are written to `data/02_current_layers/`. Each layer is saved with a county suffix:
+
+| File pattern | Object | Type |
+|---|---|---|
+| `nativelyr_<county>.RData` | `nativelyr_<county>` | `sf` POLYGON, columns: `HMPU_TARGETS`, `typ` |
+| `restorelyr_<county>.RData` | `restorelyr_<county>` | `sf` POLYGON, columns: `HMPU_TARGETS`, `typ` |
+| `nativersrv_<county>.RData` | `nativersrv_<county>` | `sfc_POLYGON` (bare geometry) |
+| `restorersrv_<county>.RData` | `restorersrv_<county>` | `sfc_POLYGON` (bare geometry) |
+
+The reservation layers (`nativersrv`, `restorersrv`) are stored as bare `sfc` geometry objects without attribute columns, as they are used purely as spatial masks in downstream analysis.
 
 ## Key Functions
 
 | Function | Purpose |
 |---|---|
-| `add_coast_up()` | Join FLUCCS codes and reclassify coastal uplands |
-| `build_current_lyrs()` | Build all four current-condition layers for one county |
-| `fixgeo()` | Union, cast to POLYGON, and zero-buffer geometries |
+| `add_coast_up()` | Join FLUCCS lookup, reclassify coastal uplands, remove developed/open water |
+| `build_current_lyrs()` | Apply conservation overlay and classify restorable lands into habitat categories |
+| `fixgeo()` | Union, cast to individual `POLYGON`, and zero-buffer geometries to resolve topology errors |
