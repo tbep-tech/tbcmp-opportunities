@@ -434,6 +434,41 @@ exst <- out$exst
 save(prop, file = here('data', '01_inputs', 'prop.RData'), compress = 'xz')
 save(exst, file = here('data', '01_inputs', 'exst.RData'), compress = 'xz')
 
+# compare to existing TB protected lands layer
+load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/prop.RData')
+oldprop <- st_transform(prop, 4326)
+load(file = here('data', '01_inputs', 'prop.RData'))
+newprop <- st_transform(prop, 4326)
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    data = oldprop,
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    group = 'TB proposed (original)'
+  ) |>
+  addPolygons(
+    data = newprop,
+    fillOpacity = 0.6,
+    color = '#555555',
+    weight = 0.5,
+    group = 'TBCMP proposed (new)'
+  ) |>
+  addPolygons(
+    data = st_transform(tbcmp_cnt, 4326),
+    fillOpacity = 0,
+    color = 'black',
+    weight = 1.5,
+    label = ~county,
+    group = 'Counties'
+  ) |>
+  addLayersControl(
+    overlayGroups = c('TB proposed (original)', 'TBCMP proposed (new)'),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
 # LULC -------------------------------------------------------------------
 
 # save 2023 lulc files to data folder by county
