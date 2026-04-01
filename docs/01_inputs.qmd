@@ -342,7 +342,7 @@ Polygons are classified using the Florida Land Use, Cover and Forms Classificati
 
 ### Processing
 
-Each county shapefile is downloaded as a zip archive, extracted, read with `sf::st_read()`, and reprojected to EPSG:3087. The zip and temporary extraction directory are deleted after processing. Each county is saved as a separate RData file with an object name matching the file name:
+`fetch_lulc(county)` is called once per county. It downloads the shapefile as a zip archive, extracts it, reads it with `sf::st_read()`, and reprojects to EPSG:3087. The zip and temporary extraction directory are deleted before returning. The returned object is saved from the calling script. Each county produces a separate RData file:
 
 | File | Object |
 |---|---|
@@ -358,7 +358,7 @@ Each county shapefile is downloaded as a zip archive, extracted, read with `sf::
 
 | Function | Purpose |
 |---|---|
-| `fetch_lulc()` | Download, reproject, and save all seven county LULC shapefiles |
+| `fetch_lulc(county)` | Download and reproject one county LULC shapefile; returns an `sf` object |
 
 ## Seagrass
 
@@ -379,7 +379,7 @@ Each layer is queried as GeoJSON (`outFields=*&where=1=1&f=geojson`). Polygons a
 
 Each GeoJSON layer is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. Both layers are tagged with a `source` field (`suncoast` or `springs_coast`), combined with `dplyr::bind_rows()`, reprojected to EPSG:3087, and validated with `sf::st_make_valid()`.
 
-The combined layer is then clipped to each of the seven county boundaries (supplied via the `tbcmp_cnt` argument) using `sf::st_intersection()` and saved as a separate RData file:
+The combined layer is then clipped to each county boundary by `clip_seagrass()`, which takes the combined layer, `tbcmp_cnt`, and a county name as inputs and returns the clipped `sf` object. The returned object is saved from the calling script. Each county produces a separate RData file:
 
 | File | Object |
 |---|---|
@@ -395,4 +395,5 @@ The combined layer is then clipped to each of the seven county boundaries (suppl
 
 | Function | Purpose |
 |---|---|
-| `fetch_seagrass(tbcmp_cnt)` | Download, combine, clip, and save all seven county seagrass layers |
+| `fetch_seagrass()` | Download and combine both SWFWMD seagrass survey layers; returns a single `sf` object |
+| `clip_seagrass(seagrass_all, tbcmp_cnt, county)` | Clip the combined layer to one county boundary; returns an `sf` object |

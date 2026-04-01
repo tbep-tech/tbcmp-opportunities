@@ -461,13 +461,18 @@ leaflet() |>
 
 # LULC -------------------------------------------------------------------
 
-# save 2023 lulc files to data folder by county
-fetch_lulc()
+for (county in tbcmp_cnt$county) {
+  county_lower <- tolower(county)
+  obj_name <- paste0('lulc_', county_lower)
+  assign(obj_name, fetch_lulc(county))
+  save(
+    list = obj_name,
+    file = here('data', '01_inputs', paste0(obj_name, '.RData')),
+    compress = 'xz'
+  )
+}
 
 # check county lulc
-load(file = here('data', '01_inputs', 'lulc_pinellas.RData'))
-load(file = here('data', '01_inputs', 'lulc_hillsborough.RData'))
-
 lulc_pinellas_4326 <- st_transform(lulc_pinellas, 4326)
 lulc_hillsborough_4326 <- st_transform(lulc_hillsborough, 4326)
 
@@ -496,14 +501,20 @@ leaflet() |>
 
 # seagrass ---------------------------------------------------------------
 
-# Save combined seagrass clipped by county
-fetch_seagrass()
+seagrass_all <- fetch_seagrass()
+
+for (county in tbcmp_cnt$county) {
+  county_lower <- tolower(county)
+  obj_name <- paste0('seagrass_', county_lower)
+  assign(obj_name, clip_seagrass(seagrass_all, tbcmp_cnt, county))
+  save(
+    list = obj_name,
+    file = here('data', '01_inputs', paste0(obj_name, '.RData')),
+    compress = 'xz'
+  )
+}
 
 # check county seagrass
-load(file = here('data', '01_inputs', 'seagrass_manatee.RData'))
-load(file = here('data', '01_inputs', 'seagrass_sarasota.RData'))
-load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
-
 co1_4326 <- st_transform(seagrass_manatee, 4326)
 co2_4326 <- st_transform(seagrass_sarasota, 4326)
 

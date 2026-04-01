@@ -38,11 +38,10 @@ Land use/land cover (LULC) is loaded separately for each county within the proce
 The script loops over all seven counties in `tbcmp_cnt`. For each county, the following steps are performed:
 
 1. Load the county LULC layer (`lulc_<county>.RData`)
-2. Clip all shared layers to the county boundary using `sf::st_intersection()`
-3. Call `build_current_lyrs()` to produce the four output layers
-4. Save each layer as `<layer>_<county>.RData` in `data/02_current_layers/`
+2. Call `build_current_lyrs()` to produce the four output layers
+3. Save each layer as `<layer>_<county>.RData` in `data/02_current_layers/`
 
-Clipping to the county boundary before processing reduces memory and computation time, and ensures that spatial operations in `build_current_lyrs()` do not need to handle the full seven-county extent.
+The county-wide shared layers (`coastal_stratum`, `soils`, `salinity_layer`, `prop`, `exst`) are passed in full and clipped to the county boundary inside `build_current_lyrs()`. This keeps the loop clean and ensures the clipping logic is encapsulated with the function that uses it.
 
 ## LULC Preparation
 

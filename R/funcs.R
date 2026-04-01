@@ -555,6 +555,8 @@ fetch_soils_tiled <- function(geom, tile_size = 0.1, pause = 0.5) {
 #' @param start_date Character. Query start date in \code{"MM-DD-YYYY"} format.
 #' @param end_date Character. Query end date in \code{"MM-DD-YYYY"} format.
 #' @param cache_dir Character. Directory where the zip file is saved.
+#' @param data_profile Character. WQP \code{dataProfile} value appended to Result
+#'   queries. Default \code{"resultPhysChem"}. Set to \code{NULL} to omit.
 #' @param verbose Logical. Print download progress and file size. Default \code{TRUE}.
 #'
 #' @return Character path to the zip file on success, or \code{NULL} if the
@@ -1150,21 +1152,22 @@ fetch_aqprs <- function(
     sf::st_make_valid()
 }
 
-#' Download and save 2023 SWFWMD land use/land cover shapefiles by county
+#' Download a single county LULC shapefile from SWFWMD
 #'
-#' Downloads the 2023 Land Use Land Cover shapefiles for each of the seven
-#' TBCMP counties from the Southwest Florida Water Management District (SWFWMD)
-#' ArcGIS portal. Each county is saved as a separate \code{.RData} file in
-#' \code{data/01_inputs/} with an object name matching the file name (e.g.,
-#' \code{lulc_pinellas}). Zip files are deleted after processing; re-running
-#' will re-download because the zips are not cached.
+#' Downloads the 2023 Land Use Land Cover shapefile for one TBCMP county from
+#' the Southwest Florida Water Management District (SWFWMD) ArcGIS portal,
+#' reprojects to EPSG:3087, and returns the result. The temporary zip and
+#' extraction directory are deleted before returning.
 #'
 #' Source: \url{https://swfwmd.maps.arcgis.com}
 #'
-#' @return Called for its side-effect of writing \code{data/01_inputs/lulc_<county>.RData}
-#'   files. Returns \code{invisible(NULL)}.
+#' @param county Character. County name — one of \code{"Citrus"},
+#'   \code{"Hernando"}, \code{"Hillsborough"}, \code{"Manatee"},
+#'   \code{"Pasco"}, \code{"Pinellas"}, or \code{"Sarasota"}.
+#'
+#' @return An \code{sf} polygon object in EPSG:3087 with a \code{FLUCCSCODE} column.
 
-fetch_lulc <- function() {
+fetch_lulc <- function(county) {
   lulc_items <- c(
     Citrus = "ef11d576fcb44a44b8985a2bbc38a4f7",
     Hernando = "86997a7802584735a8d8193f4a1af30f",
@@ -1175,56 +1178,44 @@ fetch_lulc <- function() {
     Sarasota = "06b95375e3dc48e1b61a9b95a87aba30"
   )
 
-  out_dir <- here::here("data", "01_inputs")
-
-  for (county in names(lulc_items)) {
-    url <- paste0(
-      "https://swfwmd.maps.arcgis.com/sharing/rest/content/items/",
-      lulc_items[[county]],
-      "/data"
-    )
-    obj_name <- paste0("lulc_", tolower(county))
-    out_path <- file.path(out_dir, paste0(obj_name, ".RData"))
-
-    zip_path <- tempfile(fileext = ".zip")
-    on.exit(unlink(zip_path), add = TRUE)
-
-    message("Downloading LULC for ", county, " ...")
-    curl::curl_download(url, zip_path)
-
-    tmp_dir <- tempfile()
-    on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
-    unzip(zip_path, exdir = tmp_dir)
-
-    shp <- list.files(
-      tmp_dir,
-      pattern = "\\.shp$",
-      full.names = TRUE,
-      recursive = TRUE
-    )[1]
-    assign(
-      obj_name,
-      sf::st_read(shp, quiet = TRUE) |>
-        sf::st_transform(3087L) |>
-        sf::st_make_valid()
-    )
-
-    save(list = obj_name, file = out_path, compress = "xz")
-    message("  Saved as ", basename(out_path))
+  if (!county %in% names(lulc_items)) {
+    stop("county must be one of: ", paste(names(lulc_items), collapse = ", "))
   }
 
-  invisible(NULL)
+  url <- paste0(
+    "https://swfwmd.maps.arcgis.com/sharing/rest/content/items/",
+    lulc_items[[county]],
+    "/data"
+  )
+
+  message("Downloading LULC for ", county, " ...")
+
+  zip_path <- tempfile(fileext = ".zip")
+  on.exit(unlink(zip_path), add = TRUE)
+  curl::curl_download(url, zip_path)
+
+  tmp_dir <- tempfile()
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+  unzip(zip_path, exdir = tmp_dir)
+
+  shp <- list.files(
+    tmp_dir,
+    pattern = "\\.shp$",
+    full.names = TRUE,
+    recursive = TRUE
+  )[1]
+
+  sf::st_read(shp, quiet = TRUE) |>
+    sf::st_transform(3087L) |>
+    sf::st_make_valid()
 }
 
-#' Download and save 2024 SWFWMD seagrass layers clipped by county
+#' Download and combine SWFWMD seagrass layers
 #'
 #' Downloads the 2024 seagrass mapping layers for the Suncoast and Springs Coast
-#' study areas from the SWFWMD ArcGIS REST services, combines them into a single
-#' layer, then clips to each of the seven TBCMP county boundaries and saves one
-#' \code{.RData} file per county. County boundaries are loaded from
-#' \code{data/01_inputs/tbcmp_cnt.RData}. Both sources are assumed to have no
-#' spatial overlap; a \code{source} column is added before combining to
-#' preserve provenance.
+#' study areas from the SWFWMD ArcGIS REST services and combines them into a
+#' single layer. Both sources are assumed to have no spatial overlap; a
+#' \code{source} column is added before combining to preserve provenance.
 #'
 #' Sources:
 #' \itemize{
@@ -1232,9 +1223,8 @@ fetch_lulc <- function() {
 #'   \item Springs Coast: \url{https://data-swfwmd.opendata.arcgis.com/datasets/swfwmd::seagrass-in-2024-for-the-springs-coast/about}
 #' }
 #'
-#' @return Called for its side-effect of writing
-#'   \code{data/01_inputs/seagrass_<county>.RData} files. Returns
-#'   \code{invisible(NULL)}.
+#' @return An \code{sf} polygon object in EPSG:3087 with columns \code{source},
+#'   \code{FLUCCSCODE}, and \code{FLUCCSDESC}.
 
 fetch_seagrass <- function() {
   urls <- c(
@@ -1242,7 +1232,6 @@ fetch_seagrass <- function() {
     springs_coast = "https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4/query?outFields=*&where=1%3D1&f=geojson"
   )
 
-  # Download both GeoJSON layers, linearize any curve geometries, tag source
   layers <- lapply(names(urls), function(src) {
     message("Downloading seagrass: ", src, " ...")
     tmp <- tempfile(fileext = ".gpkg")
@@ -1267,30 +1256,27 @@ fetch_seagrass <- function() {
       dplyr::select(source, FLUCCSCODE, FLUCCSDESC, geom)
   })
 
-  seagrass_all <- dplyr::bind_rows(layers) |>
+  dplyr::bind_rows(layers) |>
     sf::st_transform(3087L) |>
     sf::st_make_valid()
+}
 
-  # Clip to each county and save
-  load(here::here("data", "01_inputs", "tbcmp_cnt.RData"))
-  out_dir <- here::here("data", "01_inputs")
+#' Clip combined seagrass layer to a single county
+#'
+#' Subsets the combined seagrass layer returned by \code{fetch_seagrass()} to
+#' the boundary of one county.
+#'
+#' @param seagrass_all An \code{sf} object as returned by \code{fetch_seagrass()}.
+#' @param tbcmp_cnt An \code{sf} polygon with one row per county and a
+#'   \code{county} column.
+#' @param county Character. County name matching a value in \code{tbcmp_cnt$county}.
+#'
+#' @return An \code{sf} polygon object clipped to the county boundary in EPSG:3087.
 
-  for (county in tbcmp_cnt$county) {
-    obj_name <- paste0("seagrass_", tolower(county))
-    out_path <- file.path(out_dir, paste0(obj_name, ".RData"))
-
-    cnt_geom <- tbcmp_cnt[tbcmp_cnt$county == county, ]
-    assign(
-      obj_name,
-      sf::st_intersection(seagrass_all, sf::st_union(cnt_geom)) |>
-        sf::st_make_valid()
-    )
-
-    save(list = obj_name, file = out_path, compress = "xz")
-    message("  Saved as ", basename(out_path))
-  }
-
-  invisible(NULL)
+clip_seagrass <- function(seagrass_all, tbcmp_cnt, county) {
+  cnt_geom <- tbcmp_cnt[tbcmp_cnt$county == county, ]
+  sf::st_intersection(seagrass_all, sf::st_union(cnt_geom)) |>
+    sf::st_make_valid()
 }
 
 #' Fetch FNAI CLIP priorities raster and vector clipped to a county boundary
@@ -1556,8 +1542,8 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
 
 #' Build the four current-condition layers for one county
 #'
-#' Given county-clipped input layers, produces the four spatial outputs used
-#' in the TBCMP opportunity analysis:
+#' Clips the county-wide shared input layers to the specified county boundary,
+#' then produces the four spatial outputs used in the TBCMP opportunity analysis:
 #'
 #' \describe{
 #'   \item{\code{nativelyr}}{Existing and proposed conservation lands
@@ -1573,28 +1559,45 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
 #'     stratum that are proposed for conservation or currently unprotected.}
 #' }
 #'
-#' @param lulc    \code{sf}. County LULC layer with a \code{FLUCCSCODE} column.
-#' @param coastal \code{sf} or \code{sfc}. Coastal stratum clipped to county.
-#' @param soils   \code{sf}. Soils layer clipped to county, with \code{gridcode}
-#'   column (100 = Xeric, 200/300 = Mesic/Hydric).
-#' @param salin   \code{sf}. Salinity layer clipped to county, with
-#'   \code{Descrip} column (e.g. \code{"0.5-18"} for the Juncus zone).
-#' @param prop    \code{sf} or \code{sfc}. Proposed conservation lands.
-#' @param exst    \code{sf} or \code{sfc}. Existing conservation lands.
-#' @param fluccs  Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
+#' @param lulc             \code{sf}. County LULC layer with a \code{FLUCCSCODE} column.
+#' @param coastal_stratum  \code{sf}. Full study-area coastal stratum; clipped to
+#'   \code{county} internally.
+#' @param soils            \code{sf}. Full study-area soils layer with \code{gridcode}
+#'   column (100 = Xeric, 200/300 = Mesic/Hydric); clipped to \code{county} internally.
+#' @param salinity_layer   \code{sf}. Full study-area salinity layer with \code{Descrip}
+#'   column; clipped to \code{county} internally.
+#' @param prop             \code{sf} or \code{sfc}. Full study-area proposed conservation
+#'   lands; clipped to \code{county} internally.
+#' @param exst             \code{sf} or \code{sfc}. Full study-area existing conservation
+#'   lands; clipped to \code{county} internally.
+#' @param fluccs           Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
 #'   \code{HMPU_TARGETS} columns.
+#' @param tbcmp_cnt        \code{sf} polygon with one row per county and a \code{county}
+#'   column, used to derive the clipping boundary.
+#' @param county           Character. County name matching a value in \code{tbcmp_cnt$county}.
+#'
 #' @return A named list with elements \code{nativelyr}, \code{restorelyr},
 #'   \code{nativersrv}, and \code{restorersrv}.
 
 build_current_lyrs <- function(
   lulc,
-  coastal,
+  coastal_stratum,
   soils,
-  salin,
+  salinity_layer,
   prop,
   exst,
-  fluccs
+  fluccs,
+  tbcmp_cnt,
+  county
 ) {
+  # Clip shared layers to county boundary
+  cnt_geom <- sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
+  coastal  <- sf::st_intersection(coastal_stratum, cnt_geom)
+  soils    <- sf::st_intersection(soils, cnt_geom)
+  salin    <- sf::st_intersection(salinity_layer, cnt_geom)
+  prop     <- sf::st_intersection(prop, cnt_geom)
+  exst     <- sf::st_intersection(exst, cnt_geom)
+
   # Prepare LULC: FLUCCS join, coastal uplands reclassification, drop non-habitat
   lulc_prep <- add_coast_up(lulc, coastal, fluccs) |>
     dplyr::filter(!HMPU_TARGETS %in% c('Developed', 'Open Water'))
@@ -1809,37 +1812,50 @@ subt_est <- function(subtin, fluccs, sumout = TRUE) {
 
 #' Build a current extent flextable for one spatial unit
 #'
-#' Computes current extent, native conservation, and restorable land summaries
-#' from the input layers and assembles them into a formatted \code{flextable}.
-#' Subtidal features (seagrasses, oyster bars) are derived from \code{subt}
-#' via \code{subt_est()}. Hard bottom, artificial reefs, tidal tributaries, and
+#' Clips the coastal stratum to the specified county, then computes current
+#' extent, native conservation, and restorable land summaries from the input
+#' layers and assembles them into a formatted \code{flextable}. Subtidal
+#' features (seagrasses, oyster bars) are derived from \code{subt} via
+#' \code{subt_est()}. Hard bottom, artificial reefs, tidal tributaries, and
 #' living shorelines are not used in the TBCMP 7-county workflow.
 #'
-#' @param lulc     \code{sf}. LULC layer with \code{FLUCCSCODE} column.
-#' @param subt     \code{sf}. Seagrass / subtidal layer with \code{FLUCCSCODE}.
-#' @param coastal  \code{sf} or \code{sfc}. Coastal stratum.
-#' @param fluccs   Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
+#' @param lulc           \code{sf}. County LULC layer with \code{FLUCCSCODE} column.
+#' @param subt           \code{sf}. County seagrass / subtidal layer with \code{FLUCCSCODE}.
+#' @param coastal_stratum \code{sf}. Full study-area coastal stratum; clipped to
+#'   \code{county} internally.
+#' @param fluccs         Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
 #'   \code{HMPU_TARGETS} columns.
-#' @param strata   Data frame. Stratification lookup with \code{Category} and
+#' @param strata         Data frame. Stratification lookup with \code{Category} and
 #'   \code{HMPU_TARGETS} columns (as built in \code{01_inputs.R}).
-#' @param nativelyr  \code{sf}. Native habitats in conservation lands (from
+#' @param nativelyr      \code{sf}. Native habitats in conservation lands (from
 #'   \code{build_current_lyrs()}).
-#' @param restorelyr \code{sf}. Restorable lands in conservation (from
+#' @param restorelyr     \code{sf}. Restorable lands in conservation (from
 #'   \code{build_current_lyrs()}).
-#' @param cap      Character. Table caption string.
+#' @param tbcmp_cnt      \code{sf} polygon with one row per county and a \code{county}
+#'   column, used to derive the clipping boundary.
+#' @param county         Character. County name matching a value in \code{tbcmp_cnt$county}.
+#' @param cap            Character. Table caption string.
 #'
 #' @return A \code{flextable} object.
 
 curex_fun <- function(
   lulc,
   subt,
-  coastal,
+  coastal_stratum,
   fluccs,
   strata,
   nativelyr,
   restorelyr,
+  tbcmp_cnt,
+  county,
   cap
 ) {
+  # Clip coastal stratum to county boundary
+  coastal <- sf::st_intersection(
+    coastal_stratum,
+    sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
+  )
+
   # current lulc and subtidal summaries
   lulcsum <- lulc_est(lulc, coastal, fluccs)
   subtsum <- subt_est(subt, fluccs)

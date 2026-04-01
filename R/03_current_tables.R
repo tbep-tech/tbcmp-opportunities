@@ -42,19 +42,17 @@ for (county in tbcmp_cnt$county) {
   nativelyr <- get(paste0('nativelyr_', county_lower))
   restorelyr <- get(paste0('restorelyr_', county_lower))
 
-  # Clip coastal stratum to county
-  cnt_geom <- sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
-  coastal_cnt <- sf::st_intersection(coastal_stratum, cnt_geom)
-
   # Build table
   tab <- curex_fun(
     lulc = lulc,
     subt = subt,
-    coastal = coastal_cnt,
+    coastal_stratum = coastal_stratum,
     fluccs = fluccs,
     strata = strata,
     nativelyr = nativelyr,
     restorelyr = restorelyr,
+    tbcmp_cnt = tbcmp_cnt,
+    county = county,
     cap = paste(
       'Current habitat extent and conservation opportunity -',
       county,

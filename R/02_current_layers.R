@@ -20,40 +20,25 @@ out_dir <- here('data', '02_current_layers')
 
 # current layers by county -----------------------------------------------
 
-# For each county:
-#   1. Load county LULC
-#   2. Clip shared layers to county boundary
-#   3. Build nativelyr, restorelyr, nativersrv, restorersrv
-#   4. Save each as <layer>_<county>.RData
-
 for (county in tbcmp_cnt$county) {
   county_lower <- tolower(county)
   message('\n--- ', county, ' ---')
 
-  # Load county LULC
   load(here('data', '01_inputs', paste0('lulc_', county_lower, '.RData')))
   lulc <- get(paste0('lulc_', county_lower))
 
-  # Clip shared layers to county boundary
-  cnt_geom <- sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
-  coastal_cnt <- sf::st_intersection(coastal_stratum, cnt_geom)
-  soils_cnt <- sf::st_intersection(soils, cnt_geom)
-  salin_cnt <- sf::st_intersection(salinity_layer, cnt_geom)
-  prop_cnt <- sf::st_intersection(prop, cnt_geom)
-  exst_cnt <- sf::st_intersection(exst, cnt_geom)
-
-  # Build the four current-condition layers
   out <- build_current_lyrs(
     lulc = lulc,
-    coastal = coastal_cnt,
-    soils = soils_cnt,
-    salin = salin_cnt,
-    prop = prop_cnt,
-    exst = exst_cnt,
-    fluccs = fluccs
+    coastal_stratum = coastal_stratum,
+    soils = soils,
+    salinity_layer = salinity_layer,
+    prop = prop,
+    exst = exst,
+    fluccs = fluccs,
+    tbcmp_cnt = tbcmp_cnt,
+    county = county
   )
 
-  # Save each layer with county suffix
   for (lyr in names(out)) {
     obj_name <- paste0(lyr, '_', county_lower)
     assign(obj_name, out[[lyr]])
@@ -62,14 +47,12 @@ for (county in tbcmp_cnt$county) {
       file = file.path(out_dir, paste0(obj_name, '.RData')),
       compress = 'xz'
     )
-    message('  Saved as ', obj_name, '.RData')
+    message('  Saved ', obj_name)
   }
 }
 
 # compare Hillsborough new with HMPU
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/restorelyr.RData')
-load(file = here('data', '02_current_layers', 'restorelyr_hillsborough.RData'))
-load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
 
 cmp1 <- st_transform(restorelyr, 4326)
 cmp2 <- st_transform(restorelyr_hillsborough, 4326)
