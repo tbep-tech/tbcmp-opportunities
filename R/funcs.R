@@ -1592,11 +1592,11 @@ build_current_lyrs <- function(
 ) {
   # Clip shared layers to county boundary
   cnt_geom <- sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
-  coastal  <- sf::st_intersection(coastal_stratum, cnt_geom)
-  soils    <- sf::st_intersection(soils, cnt_geom)
-  salin    <- sf::st_intersection(salinity_layer, cnt_geom)
-  prop     <- sf::st_intersection(prop, cnt_geom)
-  exst     <- sf::st_intersection(exst, cnt_geom)
+  coastal <- sf::st_intersection(coastal_stratum, cnt_geom)
+  soils <- sf::st_intersection(soils, cnt_geom)
+  salin <- sf::st_intersection(salinity_layer, cnt_geom)
+  prop <- sf::st_intersection(prop, cnt_geom)
+  exst <- sf::st_intersection(exst, cnt_geom)
 
   # Prepare LULC: FLUCCS join, coastal uplands reclassification, drop non-habitat
   lulc_prep <- add_coast_up(lulc, coastal, fluccs) |>
