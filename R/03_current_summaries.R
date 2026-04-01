@@ -14,9 +14,9 @@ load(here('data', '01_inputs', 'strata.RData'))
 load(here('data', '01_inputs', 'tbcmp_cnt.RData'))
 load(here('data', '01_inputs', 'coastal_stratum.RData'))
 
-out_dir <- here('data', '03_current_tables')
+out_dir <- here('data', '03_current_summaries')
 
-# current table by county ------------------------------------------------
+# current summaries by county --------------------------------------------
 
 for (county in tbcmp_cnt$county) {
   county_lower <- tolower(county)
@@ -43,7 +43,7 @@ for (county in tbcmp_cnt$county) {
   restorelyr <- get(paste0('restorelyr_', county_lower))
 
   # Build table
-  tab <- curex_fun(
+  sum <- curex_fun(
     lulc = lulc,
     subt = subt,
     coastal_stratum = coastal_stratum,
@@ -52,16 +52,11 @@ for (county in tbcmp_cnt$county) {
     nativelyr = nativelyr,
     restorelyr = restorelyr,
     tbcmp_cnt = tbcmp_cnt,
-    county = county,
-    cap = paste(
-      'Current habitat extent and conservation opportunity -',
-      county,
-      'County'
-    )
+    county = county
   )
 
-  obj_name <- paste0('current_table_', county_lower)
-  assign(obj_name, tab)
+  obj_name <- paste0('current_summary_', county_lower)
+  assign(obj_name, sum)
   save(
     list = obj_name,
     file = file.path(out_dir, paste0(obj_name, '.RData')),

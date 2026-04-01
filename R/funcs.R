@@ -1810,14 +1810,13 @@ subt_est <- function(subtin, fluccs, sumout = TRUE) {
     dplyr::arrange(HMPU_TARGETS)
 }
 
-#' Build a current extent flextable for one spatial unit
+#' Build a current extent for one spatial unit
 #'
 #' Clips the coastal stratum to the specified county, then computes current
 #' extent, native conservation, and restorable land summaries from the input
-#' layers and assembles them into a formatted \code{flextable}. Subtidal
+#' layers and assembles. Subtidal
 #' features (seagrasses, oyster bars) are derived from \code{subt} via
-#' \code{subt_est()}. Hard bottom, artificial reefs, tidal tributaries, and
-#' living shorelines are not used in the TBCMP 7-county workflow.
+#' \code{subt_est()}. Intertidal and supratidal features are derived from \code{lulc} via \code{lulc_est()}.
 #'
 #' @param lulc           \code{sf}. County LULC layer with \code{FLUCCSCODE} column.
 #' @param subt           \code{sf}. County seagrass / subtidal layer with \code{FLUCCSCODE}.
@@ -1836,7 +1835,8 @@ subt_est <- function(subtin, fluccs, sumout = TRUE) {
 #' @param county         Character. County name matching a value in \code{tbcmp_cnt$county}.
 #' @param cap            Character. Table caption string.
 #'
-#' @return A \code{flextable} object.
+#' @return A summary of current extent, native conservation, and restorable lands by HMPU
+#' target for the county, as a data frame.
 
 curex_fun <- function(
   lulc,
@@ -1935,28 +1935,24 @@ curex_fun <- function(
       `total restorable` = `restorable Existing` + `restorable Proposed`
     )
 
-  curexcmp_fun(cursum, nativesum, restoresum, strata, cap)
+  out <- cursum %>%
+    dplyr::left_join(nativesum, by = 'HMPU_TARGETS') %>%
+    dplyr::left_join(restoresum, by = 'HMPU_TARGETS')
+
+  return(out)
 }
 
-#' Compile current extent table from pre-computed summaries
+#' Create current extent table from pre-computed summaries
 #'
-#' Combines current extent, native conservation, and restorable land summaries
-#' into a single formatted \code{flextable}. Called internally by
-#' \code{curex_fun()}.
+#' Formats output form \code{curex_fun} into a table using \code{flextable}.
 #'
-#' @param cursum     Data frame. Current extent summary (output of the first
-#'   section of \code{curex_fun()}).
-#' @param nativesum  Data frame. Native conservation summary.
-#' @param restoresum Data frame. Restorable land summary.
-#' @param strata     Data frame. Stratification lookup.
-#' @param cap        Character. Caption string.
+#' @param allsum     Data frame. Current extent summary (output from \code{curex_fun()}).
+#' @param county     Character. County name for the caption.
 #'
 #' @return A \code{flextable} object.
 
-curexcmp_fun <- function(cursum, nativesum, restoresum, strata, cap) {
-  allsum <- cursum %>%
-    dplyr::left_join(nativesum, by = 'HMPU_TARGETS') %>%
-    dplyr::left_join(restoresum, by = 'HMPU_TARGETS') %>%
+curextab_fun <- function(allsum, county) {
+  allsumfrm <- allsum %>%
     tidyr::gather('var', 'val', -Category, -HMPU_TARGETS, -unis) %>%
     dplyr::mutate(
       val = dplyr::case_when(
@@ -1999,14 +1995,19 @@ curexcmp_fun <- function(cursum, nativesum, restoresum, strata, cap) {
       `restorable Proposed`
     )
 
-  cap <- flextable::as_paragraph(
+  cap <- paste(
+    'Current habitat extent and conservation opportunity -',
+    county,
+    'County'
+  )
+  capfrm <- flextable::as_paragraph(
     flextable::as_chunk(
       cap,
       props = flextable::fp_text_default(font.size = 14, bold = TRUE)
     )
   )
 
-  allsum %>%
+  allsumfrm %>%
     flextable::as_grouped_data(groups = 'Category') %>%
     dplyr::mutate(
       HMPU_TARGETS = dplyr::case_when(
@@ -2065,6 +2066,6 @@ curexcmp_fun <- function(cursum, nativesum, restoresum, strata, cap) {
     flextable::border_inner_v(part = 'body') %>%
     flextable::border_inner_h(part = 'header') %>%
     flextable::border_inner_v(part = 'header') %>%
-    flextable::set_caption(caption = cap) %>%
+    flextable::set_caption(caption = capfrm) %>%
     flextable::font(part = 'all', fontname = 'Roboto')
 }
