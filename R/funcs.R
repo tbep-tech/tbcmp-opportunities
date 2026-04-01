@@ -1847,8 +1847,7 @@ curex_fun <- function(
   nativelyr,
   restorelyr,
   tbcmp_cnt,
-  county,
-  cap
+  county
 ) {
   # Clip coastal stratum to county boundary
   coastal <- sf::st_intersection(
@@ -2054,10 +2053,10 @@ curextab_fun <- function(allsum, county) {
       align = 'center',
       part = 'body'
     ) %>%
-    flextable::bg(i = c(1, 5, 9), bg = '#00806E', part = 'body') %>%
+    flextable::bg(i = c(1, 5, 9), bg = '#418DA8', part = 'body') %>%
     flextable::color(i = c(1, 5, 9), color = 'white', part = 'body') %>%
-    flextable::bg(i = 1, bg = '#004F7E', part = 'header') %>%
-    flextable::bg(i = 2, j = 1, bg = '#004F7E', part = 'header') %>%
+    flextable::bg(i = 1, bg = '#1A596B', part = 'header') %>%
+    flextable::bg(i = 2, j = 1, bg = '#1A596B', part = 'header') %>%
     flextable::color(i = 1, color = 'white', part = 'header') %>%
     flextable::color(i = 2, j = 1, color = 'white', part = 'header') %>%
     flextable::border_outer(part = 'body') %>%
