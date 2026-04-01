@@ -60,8 +60,8 @@ Before any conservation overlay is applied, the LULC layer is prepared by `add_c
 
 For each HMPU habitat category, the LULC geometry is intersected with:
 
-- **Existing conservation** (`exst`) — producing `exstall`
-- **Proposed conservation** (`prop`) — producing `propall`
+- **Existing conservation** (`exst`) producing `exstall`
+- **Proposed conservation** (`prop`) producing `propall`
 
 Each resulting feature retains its `HMPU_TARGETS` category label and a `typ` field (`"Existing"` or `"Proposed"`).
 
@@ -71,28 +71,28 @@ Each resulting feature retains its `HMPU_TARGETS` category label and a `typ` fie
 
 `restorelyr` is built from the `Restorable` category features in `propall` and `exstall`. These are degraded or altered lands within conservation boundaries that have potential for ecological restoration. For each conservation type (`Existing` and `Proposed`), restorable areas are sub-classified into five habitat categories using the soils layer, coastal stratum, and salinity zone as a three-stage spatial filter:
 
-### Stage 1 — Soil type
+### Stage 1: Soil type
 
 The soils layer splits restorable land into two groups:
 
-- **Xeric soils** (gridcode 100): well-drained upland soils → candidate upland habitats
-- **Non-xeric soils** (gridcode 200 or 300): seasonally or permanently saturated soils → candidate wetland habitats
+- **Xeric soils** (gridcode 100): well-drained upland soils for candidate upland habitats
+- **Non-xeric soils** (gridcode 200 or 300): seasonally or permanently saturated soils for candidate wetland habitats
 
-### Stage 2 — Tidal position
+### Stage 2: Tidal position
 
 Each soil group is then split by intersection with the coastal stratum:
 
-- Xeric soils **inside** the coastal stratum → `Coastal Uplands`
-- Xeric soils **outside** the coastal stratum → `Native Uplands`
-- Non-xeric soils **inside** the coastal stratum → tidal wetlands (further classified below)
-- Non-xeric soils **outside** the coastal stratum → `Freshwater Wetlands`
+- Xeric soils inside the coastal stratum to `Coastal Uplands`
+- Xeric soils outside the coastal stratum to `Native Uplands`
+- Non-xeric soils inside the coastal stratum to tidal wetlands (further classified below)
+- Non-xeric soils outside the coastal stratum to `Freshwater Wetlands`
 
-### Stage 3 — Salinity zone (tidal wetlands only)
+### Stage 3: Salinity zone (tidal wetlands only)
 
 Tidal wetlands (non-xeric soils within the coastal stratum) are split by intersection with the salinity layer:
 
-- Tidal wetlands in the **0.5–18 psu zone** → `Salt Marshes` (dominated by *Juncus* and *Spartina*; the 18 psu boundary follows @eleuterius1979)
-- Tidal wetlands in **all other salinity zones** (Fresh < 0.5 psu and Euhaline > 18 psu) → `Mangrove Forests/Salt Barrens`
+- Tidal wetlands in the 0.5–18 psu zone to `Salt Marshes` (dominated by *Juncus* and *Spartina*, following the 18 psu boundary follows @eleuterius1979)
+- Tidal wetlands in all other salinity zones (Fresh < 0.5 psu and Euhaline > 18 psu) to `Mangrove Forests/Salt Barrens`
 
 The classification logic is summarised in the decision tree below:
 
@@ -118,7 +118,7 @@ In other words, for each layer:
 
 $$\text{reservation} = (\text{proposed conservation} \cap \text{coastal stratum}) \cup (\text{unprotected} \cap \text{coastal stratum})$$
 
-These layers represent the total coastal area available for conservation action — either by securing proposed acquisitions or by identifying currently unprotected coastal habitat.
+These layers represent the total coastal area available for conservation action, either by securing proposed acquisitions or by identifying currently unprotected coastal habitat.
 
 ## Output Files
 

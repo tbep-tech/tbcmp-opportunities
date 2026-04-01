@@ -18,7 +18,7 @@ The delineation follows three main steps:
 
 #### Source
 
-The DEM used is the **NOAA Continuously Updated DEM (CUDEM)**, accessed from the TBCMP ESRI FileGeodatabase:
+The DEM used is the NOAA Continuously Updated DEM (CUDEM), accessed from the TBCMP ESRI FileGeodatabase:
 
 ```
 T:/05_GIS/TBEP/TBCMP/TBCMP_TBEP_DATASETS.gdb :: NOAA_CUDEM_tbcmp_extent_m
@@ -47,7 +47,7 @@ The lower bound of the coastal stratum is MLLW, not a fixed NAVD88 elevation. ML
 
 #### VDatum API
 
-Tidal datum offsets are obtained from the **NOAA VDatum web API**, which converts between vertical datums at arbitrary geographic locations. For each sample point, the API converts 0 m MLLW to its equivalent NAVD88 elevation, providing the local MLLW offset.
+Tidal datum offsets are obtained from the NOAA VDatum web API, which converts between vertical datums at arbitrary geographic locations. For each sample point, the API converts 0 m MLLW to its equivalent NAVD88 elevation, providing the local MLLW offset.
 
 API endpoint:
 
@@ -73,7 +73,7 @@ A regular grid of sample points at ~5 km spacing (0.05° in geographic coordinat
 
 #### Interpolation
 
-Valid offset values are interpolated to a continuous surface using a **thin-plate spline (TPS)** from the `fields` package. TPS is appropriate here because:
+Valid offset values are interpolated to a continuous surface using a thin-plate spline (TPS) from the `fields` package. TPS is appropriate here because:
 
 - Tidal datum variation is smooth and gradual
 - It exactly interpolates at observed points
@@ -119,7 +119,7 @@ The soils layer classifies SSURGO map units across the seven-county study area i
 
 ### Source Data
 
-Soil map unit polygons are obtained from the **NRCS SSURGO** database via the Soil Data Access (SDA) web service, queried using the `soilDB` R package. Polygons are fetched by county to avoid API timeouts, with each county geometry subdivided into a regular tile grid (~0.1° tiles) and queried tile by tile.
+Soil map unit polygons are obtained from the NRCS SSURGO database via the Soil Data Access (SDA) web service, queried using the `soilDB` R package. Polygons are fetched by county to avoid API timeouts, with each county geometry subdivided into a regular tile grid (~0.1° tiles) and queried tile by tile.
 
 ### Classification Method
 
@@ -127,13 +127,13 @@ Map units are classified by matching the SSURGO map unit name (`muname`) against
 
 The classification is applied in the following order of precedence:
 
-1. **Xeric** (gridcode 100) — matched first. Well-drained, upland sandy soils (e.g., Tavares, Astatula, Candler, Paola). Xeric is evaluated before Mesic so that complex map unit names with a leading Xeric series (e.g., "Tavares-Myakka complex") resolve correctly.
+1. **Xeric** (gridcode 100): Matched first for well-drained, upland sandy soils (e.g., Tavares, Astatula, Candler, Paola). Xeric is evaluated before Mesic so that complex map unit names with a leading Xeric series (e.g., "Tavares-Myakka complex") resolve correctly.
 
-2. **Hydric keyword override** (gridcode 300) — map unit names containing the terms `muck`, `depressional`, or `mostly wetland` are classified as Hydric regardless of series name. This handles series such as Pompano and Basinger that appear in both Mesic and Hydric contexts.
+2. **Hydric keyword override** (gridcode 300): Map unit names containing the terms `muck`, `depressional`, or `mostly wetland` are classified as Hydric regardless of series name. This handles series such as Pompano and Basinger that appear in both Mesic and Hydric contexts.
 
-3. **Hydric by series** (gridcode 300) — organic and permanently saturated mineral soils (e.g., Sellers, Kesson, Wulfert, Terra Ceia, Samsula, Weekiwachee, Hydraquents).
+3. **Hydric by series** (gridcode 300): Organic and permanently saturated mineral soils (e.g., Sellers, Kesson, Wulfert, Terra Ceia, Samsula, Weekiwachee, Hydraquents).
 
-4. **Mesic** (gridcode 200) — seasonally saturated flatwoods soils that are wet but not permanently inundated (e.g., Myakka, Immokalee, Pineda, Wauchula, EauGallie, Basinger).
+4. **Mesic** (gridcode 200): Seasonally saturated flatwoods soils that are wet but not permanently inundated (e.g., Myakka, Immokalee, Pineda, Wauchula, EauGallie, Basinger).
 
 Map units not matching any series list (primarily water bodies) receive `NA` and are excluded from the output.
 
@@ -379,7 +379,7 @@ Each layer is queried as GeoJSON (`outFields=*&where=1=1&f=geojson`). Polygons a
 
 Each GeoJSON layer is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. Both layers are tagged with a `source` field (`suncoast` or `springs_coast`), combined with `dplyr::bind_rows()`, reprojected to EPSG:3087, and validated with `sf::st_make_valid()`.
 
-The combined layer is then clipped to each of the seven county boundaries using `sf::st_intersection()` and saved as a separate RData file:
+The combined layer is then clipped to each of the seven county boundaries (supplied via the `tbcmp_cnt` argument) using `sf::st_intersection()` and saved as a separate RData file:
 
 | File | Object |
 |---|---|
@@ -395,4 +395,4 @@ The combined layer is then clipped to each of the seven county boundaries using 
 
 | Function | Purpose |
 |---|---|
-| `fetch_seagrass()` | Download, combine, clip, and save all seven county seagrass layers |
+| `fetch_seagrass(tbcmp_cnt)` | Download, combine, clip, and save all seven county seagrass layers |
