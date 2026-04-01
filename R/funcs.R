@@ -1537,8 +1537,8 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
   coastal_uplands <- uplands |>
     sf::st_intersection(sf::st_union(sf::st_geometry(coastal))) |>
     sf::st_union() |>
-    sf::st_cast('POLYGON') |>
-    sf::st_sf() |>
+    sf::st_cast('POLYGON')
+  coastal_uplands <- sf::st_sf(geometry = coastal_uplands) |>
     dplyr::mutate(HMPU_TARGETS = 'Coastal Uplands') |>
     dplyr::select(HMPU_TARGETS) |>
     sf::st_zm()
@@ -1549,7 +1549,7 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
 
   lulcdiff <- sf::st_difference(
     lulc,
-    sf::st_union(sf::st_geometry(coastal_uplands))
+    sf::st_geometry(sf::st_union(sf::st_combine(coastal_uplands)))
   )
   dplyr::bind_rows(lulcdiff, coastal_uplands)
 }
@@ -1758,7 +1758,7 @@ lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
     return(out)
   }
 
-  out %>%
+  out <- out %>%
     dplyr::mutate(
       Acres = sf::st_area(.),
       Acres = units::set_units(Acres, acres),
@@ -1768,6 +1768,8 @@ lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
     dplyr::group_by(HMPU_TARGETS) %>%
     dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
     dplyr::arrange(HMPU_TARGETS)
+
+  return(out)
 }
 
 #' Estimate subtidal area in acres per HMPU target category
