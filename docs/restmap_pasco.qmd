@@ -1,0 +1,21 @@
+# Pasco {.unnumbered}
+
+```{r}
+#| include: false
+library(leaflet)
+library(here)
+library(sf)
+
+i_am("docs/restmap_pasco.qmd")
+
+source(here("R", "funcs.R"))
+
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
+load(file = here('data', '05_restoration_maps', 'restmap_pasco.RData'))
+```
+
+```{r}
+#| fig-height: 8
+restmap_leaflet(restmap_pasco, 'Pasco', tbcmp_cnt, simplify = 10)
+```
+Note: polygons have been simplified for web display.

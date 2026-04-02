@@ -1,0 +1,21 @@
+# Sarasota {.unnumbered}
+
+```{r}
+#| include: false
+library(leaflet)
+library(here)
+library(sf)
+
+i_am("docs/restmap_sarasota.qmd")
+
+source(here("R", "funcs.R"))
+
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
+load(file = here('data', '05_restoration_maps', 'restmap_sarasota.RData'))
+```
+
+```{r}
+#| fig-height: 8
+restmap_leaflet(restmap_sarasota, 'Sarasota', tbcmp_cnt, simplify = 10)
+```
+Note: polygons have been simplified for web display.

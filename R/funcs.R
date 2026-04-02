@@ -2304,10 +2304,13 @@ restdat_fun <- function(restorelyr) {
 #'
 #' @param restdat An \code{sf} object as returned by \code{restdat_fun()}, with
 #'   an \code{Habitat} column identifying the habitat category.
+#' @param county Character. County name.
+#' @param tbcmp_cnt \code{sf} polygon with one row per county and a \code{county}
+#' @param simplify Numeric. Optional tolerance for geometry simplification via \code{sf::st_simplify()} to speed up rendering. Units are in the layer's CRS (e.g., meters for a projected CRS).
 #'
 #' @return A \code{leaflet} map object.
 
-restmap_leaflet <- function(restdat) {
+restmap_leaflet <- function(restdat, county, tbcmp_cnt, simplify = NULL) {
   cols <- c(
     'Coastal Uplands' = 'brown4',
     'Freshwater Wetlands' = 'orange',
@@ -2321,7 +2324,13 @@ restmap_leaflet <- function(restdat) {
     ordered = TRUE
   )
 
+  if (!is.null(simplify)) {
+    restdat <- sf::st_simplify(restdat, dTolerance = simplify)
+  }
+
   restdat_4326 <- sf::st_transform(restdat, 4326)
+  tbcmp_cnt_4326 <- sf::st_transform(tbcmp_cnt, 4326) |>
+    dplyr::filter(county == !!county)
 
   leaflet::leaflet() |>
     leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
@@ -2332,6 +2341,13 @@ restmap_leaflet <- function(restdat) {
       color = NA,
       weight = 0,
       label = ~Habitat
+    ) |>
+    leaflet::addPolygons(
+      data = tbcmp_cnt_4326,
+      fill = FALSE,
+      color = 'black',
+      weight = 1,
+      opacity = 0.5
     ) |>
     leaflet::addLegend(
       pal = pal,

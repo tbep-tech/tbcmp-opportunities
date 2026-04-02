@@ -6,6 +6,8 @@ book:
   title: "TBCMP Opportunity Analysis"
   author: "Tampa Bay Estuary Program"
   date: today
+  repo-url: https://github.com/tbep-tech/tbcmp-opportunities
+  repo-actions: [source]
   chapters:
     - index.qmd
     - current_summaries.qmd
@@ -18,6 +20,15 @@ book:
         - oppmap_pasco.qmd
         - oppmap_pinellas.qmd
         - oppmap_sarasota.qmd
+    - part: "County Restoration Potential Maps"
+      chapters:
+        - restmap_citrus.qmd
+        - restmap_hernando.qmd
+        - restmap_hillsborough.qmd
+        - restmap_manatee.qmd
+        - restmap_pasco.qmd
+        - restmap_pinellas.qmd
+        - restmap_sarasota.qmd
 
 
     - part: "Steps"
