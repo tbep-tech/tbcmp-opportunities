@@ -1504,18 +1504,18 @@ fixgeo <- function(dat) {
 #'
 #' @param lulcin  An \code{sf} object with a \code{FLUCCSCODE} column.
 #' @param coastal An \code{sf} or \code{sfc} object for the coastal stratum.
-#' @param fluccs  A data frame with \code{FLUCCSCODE} and \code{HMPU_TARGETS}
+#' @param fluccs  A data frame with \code{FLUCCSCODE} and \code{Habitat}
 #'   columns.
-#' @return An \code{sf} object with a single \code{HMPU_TARGETS} column.
+#' @return An \code{sf} object with a single \code{Habitat} column.
 
 add_coast_up <- function(lulcin, coastal, fluccs) {
   lulc <- lulcin |>
     dplyr::mutate(FLUCCSCODE = as.integer(FLUCCSCODE)) |>
     dplyr::left_join(fluccs, by = 'FLUCCSCODE') |>
-    dplyr::select(HMPU_TARGETS)
+    dplyr::select(Habitat)
 
   uplands <- lulc |>
-    dplyr::filter(HMPU_TARGETS == 'Native Uplands') |>
+    dplyr::filter(Habitat == 'Native Uplands') |>
     sf::st_geometry() |>
     sf::st_union() |>
     sf::st_cast('POLYGON')
@@ -1525,8 +1525,8 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
     sf::st_union() |>
     sf::st_cast('POLYGON')
   coastal_uplands <- sf::st_sf(geometry = coastal_uplands) |>
-    dplyr::mutate(HMPU_TARGETS = 'Coastal Uplands') |>
-    dplyr::select(HMPU_TARGETS) |>
+    dplyr::mutate(Habitat = 'Coastal Uplands') |>
+    dplyr::select(Habitat) |>
     sf::st_zm()
 
   if (nrow(coastal_uplands) == 0) {
@@ -1547,7 +1547,7 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
 #'
 #' \describe{
 #'   \item{\code{nativelyr}}{Existing and proposed conservation lands
-#'     containing native (non-restorable) habitat, with \code{HMPU_TARGETS}
+#'     containing native (non-restorable) habitat, with \code{Habitat}
 #'     and \code{typ} (\code{"Existing"}/\code{"Proposed"}) columns.}
 #'   \item{\code{restorelyr}}{Restorable lands within conservation, split into
 #'     sub-categories (Native Uplands, Coastal Uplands, Freshwater Wetlands,
@@ -1571,7 +1571,7 @@ add_coast_up <- function(lulcin, coastal, fluccs) {
 #' @param exst             \code{sf} or \code{sfc}. Full study-area existing conservation
 #'   lands; clipped to \code{county} internally.
 #' @param fluccs           Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
-#'   \code{HMPU_TARGETS} columns.
+#'   \code{Habitat} columns.
 #' @param tbcmp_cnt        \code{sf} polygon with one row per county and a \code{county}
 #'   column, used to derive the clipping boundary.
 #' @param county           Character. County name matching a value in \code{tbcmp_cnt$county}.
@@ -1600,38 +1600,38 @@ build_current_lyrs <- function(
 
   # Prepare LULC: FLUCCS join, coastal uplands reclassification, drop non-habitat
   lulc_prep <- add_coast_up(lulc, coastal, fluccs) |>
-    dplyr::filter(!HMPU_TARGETS %in% c('Developed', 'Open Water'))
-  categories <- unique(lulc_prep$HMPU_TARGETS)
+    dplyr::filter(!Habitat %in% c('Developed', 'Open Water'))
+  categories <- unique(lulc_prep$Habitat)
   prop_geom <- sf::st_union(prop)
   exst_geom <- sf::st_union(exst)
   coastal_geom <- sf::st_union(coastal)
 
-  # Intersect each HMPU category with proposed and existing conservation
+  # Intersect each habitat with proposed and existing conservation
   propall <- NULL
   exstall <- NULL
   for (cat in categories) {
     tmp <- lulc_prep |>
-      dplyr::filter(HMPU_TARGETS == cat) |>
+      dplyr::filter(Habitat == cat) |>
       fixgeo()
     propall <- dplyr::bind_rows(
       propall,
       sf::st_sf(geometry = sf::st_intersection(tmp, prop_geom) |> fixgeo()) |>
-        dplyr::mutate(HMPU_TARGETS = cat, typ = 'Proposed')
+        dplyr::mutate(Habitat = cat, typ = 'Proposed')
     )
     exstall <- dplyr::bind_rows(
       exstall,
       sf::st_sf(geometry = sf::st_intersection(tmp, exst_geom) |> fixgeo()) |>
-        dplyr::mutate(HMPU_TARGETS = cat, typ = 'Existing')
+        dplyr::mutate(Habitat = cat, typ = 'Existing')
     )
   }
 
   # Native layer: non-Restorable features in proposed/existing conservation
   nativelyr <- dplyr::bind_rows(propall, exstall) |>
-    dplyr::filter(HMPU_TARGETS != 'Restorable')
+    dplyr::filter(Habitat != 'Restorable')
 
   # Restorable layer: split by soil type, tidal position, and salinity
   restorable <- dplyr::bind_rows(propall, exstall) |>
-    dplyr::filter(HMPU_TARGETS == 'Restorable')
+    dplyr::filter(Habitat == 'Restorable')
   soilsforest <- soils |> dplyr::filter(gridcode == 100) |> fixgeo()
   soilswetland <- soils |> dplyr::filter(gridcode != 100) |> fixgeo()
   salinlo <- salin |> dplyr::filter(Descrip == '0.5-18') |> fixgeo()
@@ -1658,15 +1658,15 @@ build_current_lyrs <- function(
       restorelyr,
       dplyr::bind_rows(
         sf::st_sf(geometry = fixgeo(uplands)) |>
-          dplyr::mutate(HMPU_TARGETS = 'Native Uplands'),
+          dplyr::mutate(Habitat = 'Native Uplands'),
         sf::st_sf(geometry = fixgeo(coastal_ups)) |>
-          dplyr::mutate(HMPU_TARGETS = 'Coastal Uplands'),
+          dplyr::mutate(Habitat = 'Coastal Uplands'),
         sf::st_sf(geometry = fixgeo(wetlands)) |>
-          dplyr::mutate(HMPU_TARGETS = 'Freshwater Wetlands'),
+          dplyr::mutate(Habitat = 'Freshwater Wetlands'),
         sf::st_sf(geometry = fixgeo(tidal_wetlands)) |>
-          dplyr::mutate(HMPU_TARGETS = 'Mangrove Forests/Salt Barrens'),
+          dplyr::mutate(Habitat = 'Mangrove Forests/Salt Barrens'),
         sf::st_sf(geometry = fixgeo(salt_marshes)) |>
-          dplyr::mutate(HMPU_TARGETS = 'Salt Marshes')
+          dplyr::mutate(Habitat = 'Salt Marshes')
       ) |>
         sf::st_zm(drop = TRUE) |>
         dplyr::mutate(typ = cur_typ)
@@ -1687,14 +1687,14 @@ build_current_lyrs <- function(
     fixgeo()
 
   nativeunpro <- lulc_prep |>
-    dplyr::filter(HMPU_TARGETS != 'Restorable') |>
+    dplyr::filter(Habitat != 'Restorable') |>
     sf::st_intersection(coastal_geom) |>
     fixgeo() |>
     sf::st_difference(uniexstall) |>
     fixgeo()
 
   restoreunpro <- lulc_prep |>
-    dplyr::filter(HMPU_TARGETS == 'Restorable') |>
+    dplyr::filter(Habitat == 'Restorable') |>
     sf::st_intersection(coastal_geom) |>
     fixgeo() |>
     sf::st_difference(uniexstall) |>
@@ -1715,19 +1715,19 @@ build_current_lyrs <- function(
 # Current extent table helpers (ported from hmpu-workflow)
 # ---------------------------------------------------------------------------
 
-#' Estimate LULC area in acres per HMPU target category
+#' Estimate LULC area in acres per habitat category
 #'
 #' Filters out subtidal and open-water FLUCCS codes, calls \code{add_coast_up()}
 #' to reclassify coastal uplands, then summarises area in acres by
-#' \code{HMPU_TARGETS}.
+#' \code{Habitat}.
 #'
 #' @param lulcin An \code{sf} polygon with a \code{FLUCCSCODE} column.
 #' @param coastal An \code{sf} or \code{sfc} object for the coastal stratum.
-#' @param fluccs A data frame with \code{FLUCCSCODE} and \code{HMPU_TARGETS} columns.
+#' @param fluccs A data frame with \code{FLUCCSCODE} and \code{Habitat} columns.
 #' @param sumout Logical. If \code{TRUE} (default) return a summary data frame;
 #'   if \code{FALSE} return the prepared \code{sf} layer.
 #'
-#' @return A data frame with columns \code{HMPU_TARGETS} and \code{Acres}, or
+#' @return A data frame with columns \code{Habitat} and \code{Acres}, or
 #'   the prepared \code{sf} layer when \code{sumout = FALSE}.
 
 lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
@@ -1768,31 +1768,31 @@ lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
       Acres = as.numeric(Acres)
     ) %>%
     sf::st_set_geometry(NULL) %>%
-    dplyr::group_by(HMPU_TARGETS) %>%
+    dplyr::group_by(Habitat) %>%
     dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
-    dplyr::arrange(HMPU_TARGETS)
+    dplyr::arrange(Habitat)
 
   return(out)
 }
 
-#' Estimate subtidal area in acres per HMPU target category
+#' Estimate subtidal area in acres per habitat category
 #'
 #' Joins FLUCCS codes to a seagrass / subtidal layer and summarises area in
-#' acres by \code{HMPU_TARGETS}.
+#' acres by \code{Habitat}.
 #'
 #' @param subtin An \code{sf} polygon with a \code{FLUCCSCODE} column.
-#' @param fluccs A data frame with \code{FLUCCSCODE} and \code{HMPU_TARGETS} columns.
+#' @param fluccs A data frame with \code{FLUCCSCODE} and \code{Habitat} columns.
 #' @param sumout Logical. If \code{TRUE} (default) return a summary data frame;
 #'   if \code{FALSE} return the prepared \code{sf} layer.
 #'
-#' @return A data frame with columns \code{HMPU_TARGETS} and \code{Acres}, or
+#' @return A data frame with columns \code{Habitat} and \code{Acres}, or
 #'   the prepared \code{sf} layer when \code{sumout = FALSE}.
 
 subt_est <- function(subtin, fluccs, sumout = TRUE) {
   out <- subtin %>%
     dplyr::mutate(FLUCCSCODE = as.integer(FLUCCSCODE)) %>%
     dplyr::left_join(fluccs, by = 'FLUCCSCODE') %>%
-    dplyr::select(HMPU_TARGETS)
+    dplyr::select(Habitat)
 
   if (!sumout) {
     return(out)
@@ -1805,9 +1805,9 @@ subt_est <- function(subtin, fluccs, sumout = TRUE) {
       Acres = as.numeric(Acres)
     ) %>%
     sf::st_set_geometry(NULL) %>%
-    dplyr::group_by(HMPU_TARGETS) %>%
+    dplyr::group_by(Habitat) %>%
     dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
-    dplyr::arrange(HMPU_TARGETS)
+    dplyr::arrange(Habitat)
 }
 
 #' Build a current extent for one spatial unit
@@ -1823,9 +1823,9 @@ subt_est <- function(subtin, fluccs, sumout = TRUE) {
 #' @param coastal_stratum \code{sf}. Full study-area coastal stratum; clipped to
 #'   \code{county} internally.
 #' @param fluccs         Data frame. FLUCCS lookup with \code{FLUCCSCODE} and
-#'   \code{HMPU_TARGETS} columns.
+#'   \code{Habitat} columns.
 #' @param strata         Data frame. Stratification lookup with \code{Category} and
-#'   \code{HMPU_TARGETS} columns (as built in \code{01_inputs.R}).
+#'   \code{Habitat} columns (as built in \code{01_inputs.R}).
 #' @param nativelyr      \code{sf}. Native habitats in conservation lands (from
 #'   \code{build_current_lyrs()}).
 #' @param restorelyr     \code{sf}. Restorable lands in conservation (from
@@ -1835,8 +1835,8 @@ subt_est <- function(subtin, fluccs, sumout = TRUE) {
 #' @param county         Character. County name matching a value in \code{tbcmp_cnt$county}.
 #' @param cap            Character. Table caption string.
 #'
-#' @return A summary of current extent, native conservation, and restorable lands by HMPU
-#' target for the county, as a data frame.
+#' @return A summary of current extent, native conservation, and restorable lands by habitat
+#' for the county, as a data frame.
 
 curex_fun <- function(
   lulc,
@@ -1862,8 +1862,8 @@ curex_fun <- function(
   # current summary: join all sources to strata so every target row is present
   cursum <- dplyr::bind_rows(lulcsum, subtsum) %>%
     dplyr::mutate(unis = 'ac', `Current Extent` = Acres) %>%
-    dplyr::left_join(strata, ., by = 'HMPU_TARGETS') %>%
-    dplyr::filter(!HMPU_TARGETS %in% 'Total Intertidal') %>%
+    dplyr::left_join(strata, ., by = 'Habitat') %>%
+    dplyr::filter(!Habitat %in% 'Total Intertidal') %>%
     dplyr::mutate(
       unis = dplyr::if_else(is.na(unis), 'ac', unis),
       `Current Extent` = dplyr::if_else(
@@ -1872,8 +1872,8 @@ curex_fun <- function(
         `Current Extent`
       )
     ) %>%
-    dplyr::select(Category, HMPU_TARGETS, unis, `Current Extent`) %>%
-    dplyr::arrange(Category, HMPU_TARGETS)
+    dplyr::select(Category, Habitat, unis, `Current Extent`) %>%
+    dplyr::arrange(Category, Habitat)
 
   # native habitats in conservation lands summary
   nativesum <- nativelyr %>%
@@ -1885,9 +1885,9 @@ curex_fun <- function(
       typ = factor(typ, levels = c('native Existing', 'native Proposed'))
     ) %>%
     sf::st_set_geometry(NULL) %>%
-    dplyr::group_by(typ, HMPU_TARGETS) %>%
+    dplyr::group_by(typ, Habitat) %>%
     dplyr::summarise(Acres = sum(Acres), .groups = 'drop') %>%
-    dplyr::arrange(typ, HMPU_TARGETS) %>%
+    dplyr::arrange(typ, Habitat) %>%
     tidyr::spread(typ, Acres, fill = 0, drop = FALSE)
 
   # restorable lands in conservation summary
@@ -1903,30 +1903,30 @@ curex_fun <- function(
       )
     ) %>%
     sf::st_set_geometry(NULL) %>%
-    dplyr::group_by(typ, HMPU_TARGETS) %>%
+    dplyr::group_by(typ, Habitat) %>%
     dplyr::summarise(Acres = sum(Acres, na.rm = TRUE), .groups = 'drop') %>%
-    dplyr::arrange(typ, HMPU_TARGETS)
+    dplyr::arrange(typ, Habitat)
 
   # split 'Mangrove Forests/Salt Barrens' and 'Freshwater Wetlands' into
-  # their two constituent HMPU targets so every target row appears in the table
+  # their two constituent habitats so every target row appears in the table
   duplab1 <- 'Mangrove Forests/Salt Barrens'
   dups1 <- restoresum %>%
-    dplyr::filter(HMPU_TARGETS %in% duplab1) %>%
-    dplyr::mutate(HMPU_TARGETS = 'Mangrove Forests')
+    dplyr::filter(Habitat %in% duplab1) %>%
+    dplyr::mutate(Habitat = 'Mangrove Forests')
 
   duplab2 <- 'Freshwater Wetlands'
   dups2 <- restoresum %>%
-    dplyr::filter(HMPU_TARGETS %in% duplab2) %>%
-    dplyr::mutate(HMPU_TARGETS = 'Non-Forested Freshwater Wetlands')
+    dplyr::filter(Habitat %in% duplab2) %>%
+    dplyr::mutate(Habitat = 'Non-Forested Freshwater Wetlands')
 
   restoresum <- restoresum %>%
     dplyr::bind_rows(dups1) %>%
     dplyr::bind_rows(dups2) %>%
     dplyr::mutate(
-      HMPU_TARGETS = dplyr::case_when(
-        HMPU_TARGETS %in% duplab1 ~ 'Salt Barrens',
-        HMPU_TARGETS %in% duplab2 ~ 'Forested Freshwater Wetlands',
-        TRUE ~ HMPU_TARGETS
+      Habitat = dplyr::case_when(
+        Habitat %in% duplab1 ~ 'Salt Barrens',
+        Habitat %in% duplab2 ~ 'Forested Freshwater Wetlands',
+        TRUE ~ Habitat
       )
     ) %>%
     tidyr::spread(typ, Acres, fill = 0, drop = FALSE) %>%
@@ -1935,8 +1935,8 @@ curex_fun <- function(
     )
 
   out <- cursum %>%
-    dplyr::left_join(nativesum, by = 'HMPU_TARGETS') %>%
-    dplyr::left_join(restoresum, by = 'HMPU_TARGETS')
+    dplyr::left_join(nativesum, by = 'Habitat') %>%
+    dplyr::left_join(restoresum, by = 'Habitat')
 
   return(out)
 }
@@ -1952,14 +1952,14 @@ curex_fun <- function(
 
 curextab_fun <- function(allsum, county) {
   allsumfrm <- allsum %>%
-    tidyr::gather('var', 'val', -Category, -HMPU_TARGETS, -unis) %>%
+    tidyr::gather('var', 'val', -Category, -Habitat, -unis) %>%
     dplyr::mutate(
       val = dplyr::case_when(
         !is.na(val) ~ paste(prettyNum(round(val, 0), big.mark = ','), unis),
         TRUE ~ 'N/A'
       ),
       val = dplyr::case_when(
-        (HMPU_TARGETS %in% 'Salt Marshes') &
+        (Habitat %in% 'Salt Marshes') &
           (var %in%
             c(
               'total restorable',
@@ -1973,7 +1973,7 @@ curextab_fun <- function(allsum, county) {
         Category,
         levels = c('Subtidal', 'Intertidal', 'Supratidal')
       ),
-      HMPU_TARGETS = factor(HMPU_TARGETS, levels = levels(strata$HMPU_TARGETS))
+      Habitat = factor(Habitat, levels = levels(strata$Habitat))
     ) %>%
     tidyr::spread(var, val) %>%
     dplyr::select(-unis) %>%
@@ -1985,7 +1985,7 @@ curextab_fun <- function(allsum, county) {
     ) %>%
     dplyr::select(
       Category,
-      HMPU_TARGETS,
+      Habitat,
       `Current Extent`,
       `native Existing`,
       `native Proposed`,
@@ -2009,15 +2009,15 @@ curextab_fun <- function(allsum, county) {
   allsumfrm %>%
     flextable::as_grouped_data(groups = 'Category') %>%
     dplyr::mutate(
-      HMPU_TARGETS = dplyr::case_when(
-        is.na(HMPU_TARGETS) ~ Category,
-        TRUE ~ HMPU_TARGETS
+      Habitat = dplyr::case_when(
+        is.na(Habitat) ~ Category,
+        TRUE ~ Habitat
       )
     ) %>%
     dplyr::select(-Category) %>%
     flextable::flextable() %>%
     flextable::set_header_labels(
-      HMPU_TARGETS = 'Habitat Type',
+      Habitat = 'Habitat Type',
       `native Existing` = 'Existing Conservation Lands',
       `native Proposed` = 'Proposed Conservation Lands',
       `total restorable` = 'Total Restoration Opportunity',
@@ -2126,8 +2126,8 @@ oppdat_fun <- function(
   county
 ) {
   # Clip coastal stratum to county and union for differencing
-  cnt_geom  <- sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
-  coastal   <- sf::st_intersection(coastal_stratum, cnt_geom)
+  cnt_geom <- sf::st_union(tbcmp_cnt[tbcmp_cnt$county == county, ])
+  coastal <- sf::st_intersection(coastal_stratum, cnt_geom)
   unicoastal <- sf::st_union(sf::st_combine(coastal)) |> sf::st_make_valid()
 
   # Reservation layers (already within the coastal stratum)
@@ -2200,17 +2200,17 @@ oppdat_fun <- function(
 
 oppmap_leaflet <- function(oppdat) {
   cols <- c(
-    'Existing Conservation Native'     = 'yellowgreen',
+    'Existing Conservation Native' = 'yellowgreen',
     'Existing Conservation Restorable' = 'green4',
-    'Proposed Conservation Native'     = 'dodgerblue1',
+    'Proposed Conservation Native' = 'dodgerblue1',
     'Proposed Conservation Restorable' = 'dodgerblue4',
-    'Reservation Native'               = 'violetred1',
-    'Reservation Restorable'           = 'violetred3'
+    'Reservation Native' = 'violetred1',
+    'Reservation Restorable' = 'violetred3'
   )
 
   pal <- leaflet::colorFactor(
     palette = unname(cols),
-    levels  = names(cols),
+    levels = names(cols),
     ordered = TRUE
   )
 
@@ -2219,17 +2219,17 @@ oppmap_leaflet <- function(oppdat) {
   leaflet::leaflet() |>
     leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
     leaflet::addPolygons(
-      data        = oppdat_4326,
-      fillColor   = ~pal(cat),
+      data = oppdat_4326,
+      fillColor = ~ pal(cat),
       fillOpacity = 0.7,
-      color       = NA,
-      weight      = 0,
-      label       = ~cat
+      color = NA,
+      weight = 0,
+      label = ~cat
     ) |>
     leaflet::addLegend(
-      pal      = pal,
-      values   = names(cols),
-      title    = 'Opportunity',
+      pal = pal,
+      values = names(cols),
+      title = 'Opportunity',
       position = 'bottomright'
     )
 }
@@ -2238,7 +2238,7 @@ oppmap_leaflet <- function(oppdat) {
 #'
 #' Filters \code{restorelyr} to existing conservation lands only, reclassifies
 #' \code{Mangrove Forests/Salt Barrens} and \code{Salt Marshes} into a combined
-#' \code{Tidal Wetlands} category, dissolves geometries by \code{HMPU_TARGETS},
+#' \code{Tidal Wetlands} category, dissolves geometries by \code{Habitat},
 #' and returns an \code{sf} object suitable for mapping or export.
 #'
 #' Only existing conservation lands are included; proposed conservation lands
@@ -2246,23 +2246,24 @@ oppmap_leaflet <- function(oppdat) {
 #' represent future acquisition opportunities, not current restoration capacity.
 #'
 #' @param restorelyr An \code{sf} object as returned by \code{build_current_lyrs()},
-#'   with columns \code{HMPU_TARGETS} and \code{typ} (\code{"Existing"} or
+#'   with columns \code{Habitat} and \code{typ} (\code{"Existing"} or
 #'   \code{"Proposed"}).
 #'
-#' @return An \code{sf} object with a single column \code{HMPU_TARGETS} and one
+#' @return An \code{sf} object with a single column \code{Habitat} and one
 #'   dissolved polygon per habitat category.
 
 restdat_fun <- function(restorelyr) {
   restorelyr |>
     dplyr::filter(typ == 'Existing') |>
     dplyr::mutate(
-      HMPU_TARGETS = dplyr::case_when(
-        HMPU_TARGETS %in% c('Mangrove Forests/Salt Barrens', 'Salt Marshes') ~ 'Tidal Wetlands',
-        TRUE ~ HMPU_TARGETS
+      Habitat = dplyr::case_when(
+        Habitat %in%
+          c('Mangrove Forests/Salt Barrens', 'Salt Marshes') ~ 'Tidal Wetlands',
+        TRUE ~ Habitat
       )
     ) |>
-    dplyr::select(HMPU_TARGETS) |>
-    dplyr::group_by(HMPU_TARGETS) |>
+    dplyr::select(Habitat) |>
+    dplyr::group_by(Habitat) |>
     tidyr::nest() |>
     dplyr::mutate(geometry = purrr::map(data, fixgeo)) |>
     dplyr::select(-data) |>
@@ -2285,21 +2286,21 @@ restdat_fun <- function(restorelyr) {
 #' }
 #'
 #' @param restdat An \code{sf} object as returned by \code{restdat_fun()}, with
-#'   an \code{HMPU_TARGETS} column identifying the habitat category.
+#'   an \code{Habitat} column identifying the habitat category.
 #'
 #' @return A \code{leaflet} map object.
 
 restmap_leaflet <- function(restdat) {
   cols <- c(
-    'Coastal Uplands'     = 'brown4',
+    'Coastal Uplands' = 'brown4',
     'Freshwater Wetlands' = 'orange',
-    'Native Uplands'      = 'darkgreen',
-    'Tidal Wetlands'      = 'yellow'
+    'Native Uplands' = 'darkgreen',
+    'Tidal Wetlands' = 'yellow'
   )
 
   pal <- leaflet::colorFactor(
     palette = unname(cols),
-    levels  = names(cols),
+    levels = names(cols),
     ordered = TRUE
   )
 
@@ -2308,17 +2309,17 @@ restmap_leaflet <- function(restdat) {
   leaflet::leaflet() |>
     leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
     leaflet::addPolygons(
-      data        = restdat_4326,
-      fillColor   = ~pal(HMPU_TARGETS),
+      data = restdat_4326,
+      fillColor = ~ pal(Habitat),
       fillOpacity = 0.7,
-      color       = NA,
-      weight      = 0,
-      label       = ~HMPU_TARGETS
+      color = NA,
+      weight = 0,
+      label = ~Habitat
     ) |>
     leaflet::addLegend(
-      pal      = pal,
-      values   = names(cols),
-      title    = 'Restoration Potential',
+      pal = pal,
+      values = names(cols),
+      title = 'Restoration Potential',
       position = 'bottomright'
     )
 }

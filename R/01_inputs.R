@@ -21,7 +21,9 @@ prj <- 3087
 fluccs <- read.csv(
   here('data-raw', '01_inputs', 'FLUCCShabsclass.csv'),
   stringsAsFactors = F
-)
+) |>
+  rename(Habitat = HMPU_TARGETS)
+
 
 save(fluccs, file = here('data', '01_inputs', 'fluccs.RData'), compress = 'xz')
 
@@ -40,7 +42,7 @@ strata <- data.frame(
     "Supratidal",
     "Supratidal"
   ),
-  HMPU_TARGETS = c(
+  Habitat = c(
     "Tidal Flats",
     "Seagrasses",
     "Oyster Bars",
@@ -59,7 +61,7 @@ strata <- data.frame(
       Category,
       levels = c("Subtidal", "Intertidal", "Supratidal")
     ),
-    HMPU_TARGETS = factor(HMPU_TARGETS, levels = HMPU_TARGETS)
+    Habitat = factor(Habitat, levels = Habitat)
   )
 
 save(strata, file = here('data', '01_inputs', 'strata.RData'), compress = 'xz')

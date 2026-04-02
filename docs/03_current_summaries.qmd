@@ -6,7 +6,7 @@ This step produces a tabular summary of current habitat extent and conservation 
 
 ## Overview
 
-For each county, a single data frame is produced that compiles area estimates (in acres) across all ten HMPU habitat target categories, organized into three column groups:
+For each county, a single data frame is produced that compiles area estimates (in acres) across all ten habitat categories, organized into three column groups:
 
 | Column group | Description |
 |---|---|
@@ -14,7 +14,7 @@ For each county, a single data frame is produced that compiles area estimates (i
 | Native Habitats | Area of native (non-restorable) habitat within existing and proposed conservation lands |
 | Restorable Habitats | Area of restorable land within existing and proposed conservation lands, plus a total |
 
-Rows are stratified by tidal position (Subtidal, Intertidal, Supratidal) following the `strata` lookup. All ten HMPU target categories appear in every county summary, with zeros where no area was mapped.
+Rows are stratified by tidal position (Subtidal, Intertidal, Supratidal) following the `strata` lookup. All ten habitat categories appear in every county summary, with zeros where no area was mapped.
 
 ## Input Layers
 
@@ -23,7 +23,7 @@ Four county-wide shared layers are loaded at the start of the script:
 | Object | File | Description |
 |---|---|---|
 | `fluccs` | `data/01_inputs/fluccs.RData` | FLUCCS code lookup table |
-| `strata` | `data/01_inputs/strata.RData` | HMPU target stratification (Subtidal / Intertidal / Supratidal) |
+| `strata` | `data/01_inputs/strata.RData` | Habitat stratification (Subtidal / Intertidal / Supratidal) |
 | `tbcmp_cnt` | `data/01_inputs/tbcmp_cnt.RData` | Seven-county boundary polygons |
 | `coastal_stratum` | `data/01_inputs/coastal_stratum.RData` | Coastal stratum (MLLW to 5 ft NAVD88) |
 
@@ -58,19 +58,19 @@ The coastal stratum is passed in full and clipped to the county boundary inside 
 
 2. **Coastal Uplands reclassification**: `add_coast_up()` is called to separate Native Upland polygons that fall within the coastal stratum into a distinct `Coastal Uplands` category.
 
-3. **Area summarised** in acres by `HMPU_TARGETS` using `sf::st_area()` converted via the `units` package.
+3. **Area summarised** in acres by `Habitat` using `sf::st_area()` converted via the `units` package.
 
 ### Subtidal Area
 
-`subt_est()` derives area estimates for subtidal categories from the county seagrass layer. The FLUCCS code lookup is joined to the layer and area is summarised in acres by `HMPU_TARGETS`. This describes seagrasses, oyster bars, and tidal flats.
+`subt_est()` derives area estimates for subtidal categories from the county seagrass layer. The FLUCCS code lookup is joined to the layer and area is summarised in acres by `Habitat`. This describes seagrasses, oyster bars, and tidal flats.
 
 ### Joined to Strata Lookup
 
-The LULC and subtidal summaries are combined and left-joined to the `strata` lookup table so that every HMPU target category appears in every county, even if no area was mapped. Missing values are filled with zero acres.
+The LULC and subtidal summaries are combined and left-joined to the `strata` lookup table so that every habitat category appears in every county, even if no area was mapped. Missing values are filled with zero acres.
 
 ## Native Conservation Summary
 
-Area within `nativelyr` is summarised by `HMPU_TARGETS` and `typ` (`"Existing"` or `"Proposed"`), then spread to wide format with one column per conservation type:
+Area within `nativelyr` is summarised by `Habitat` and `typ` (`"Existing"` or `"Proposed"`), then spread to wide format with one column per conservation type:
 
 | Column | Description |
 |---|---|
@@ -81,12 +81,12 @@ For subtidal rows, the `native Existing` column is populated with the Current Ex
 
 ## Restorable Lands Summary
 
-Area within `restorelyr` is summarised by `HMPU_TARGETS` and `typ`, then spread to wide format. Two adjustments are made to align the restorable layer's compound labels with the HMPU target rows in the `strata` lookup:
+Area within `restorelyr` is summarised by `Habitat` and `typ`, then spread to wide format. Two adjustments are made to align the restorable layer's compound labels with the habitat rows in the `strata` lookup:
 
 - `Mangrove Forests/Salt Barrens` is duplicated into `Mangrove Forests` and `Salt Barrens` as separate rows
 - `Freshwater Wetlands` is duplicated into `Non-Forested Freshwater Wetlands` and `Forested Freshwater Wetlands` as separate rows
 
-This ensures every HMPU target in the strata lookup has a corresponding restorable row, even though `restorelyr` stores the two freshwater wetland types and the two tidal habitat types as combined geometries.
+This ensures every habitat in the strata lookup has a corresponding restorable row, even though `restorelyr` stores the two freshwater wetland types and the two tidal habitat types as combined geometries.
 
 A `total restorable` column is computed as the sum of `restorable Existing` and `restorable Proposed`.
 
@@ -97,7 +97,7 @@ All output files are written to `data/03_current_summaries/`. Each file contains
 | Column | Description |
 |---|---|
 | `Category` | Tidal stratum: `Subtidal`, `Intertidal`, or `Supratidal` |
-| `HMPU_TARGETS` | HMPU habitat target category |
+| `Habitat` | Habitat category |
 | `unis` | Unit label (`"ac"`) |
 | `Current Extent` | Total mapped area in acres |
 | `native Existing` | Native habitat in existing conservation (acres) |
@@ -132,5 +132,5 @@ All output files are written to `data/03_current_summaries/`. Each file contains
 |---|---|
 | `curex_fun()` | Clip coastal stratum to county, compute current extent and conservation summaries, return wide data frame |
 | `curextab_fun()` | Format `curex_fun()` output into a styled `flextable` for reporting |
-| `lulc_est()` | Compute intertidal/supratidal area by HMPU target from the LULC layer |
-| `subt_est()` | Compute subtidal area by HMPU target from the seagrass layer |
+| `lulc_est()` | Compute intertidal/supratidal area by habitat from the LULC layer |
+| `subt_est()` | Compute subtidal area by habitat from the seagrass layer |

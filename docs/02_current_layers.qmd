@@ -47,7 +47,7 @@ The county-wide shared layers (`coastal_stratum`, `soils`, `salinity_layer`, `pr
 
 Before any conservation overlay is applied, the LULC layer is prepared by `add_coast_up()`. This function performs two tasks:
 
-**FLUCCS join**: The FLUCCS code lookup table is joined to the LULC polygons by `FLUCCSCODE`, attaching `HMPU_TARGETS` habitat category labels to each polygon (e.g., Native Uplands, Restorable, Mangrove Forests, Salt Marshes, Seagrasses, etc.).
+**FLUCCS join**: The FLUCCS code lookup table is joined to the LULC polygons by `FLUCCSCODE`, attaching `Habitat` habitat category labels to each polygon (e.g., Native Uplands, Restorable, Mangrove Forests, Salt Marshes, Seagrasses, etc.).
 
 **Coastal Uplands reclassification**: Native Upland polygons that spatially overlap the coastal stratum are extracted and relabelled as `Coastal Uplands`. This separates upland habitats within the tidal zone from those further inland, as they have different vulnerability and restoration context. The remaining Native Uplands layer is trimmed to remove the overlap so there is no double-counting.
 
@@ -57,12 +57,12 @@ Before any conservation overlay is applied, the LULC layer is prepared by `add_c
 
 `build_current_lyrs()` intersects the prepared LULC with the conservation land boundaries to produce the native and restorable layers.
 
-For each HMPU habitat category, the LULC geometry is intersected with:
+For each category, the LULC geometry is intersected with:
 
 - **Existing conservation** (`exst`) producing `exstall`
 - **Proposed conservation** (`prop`) producing `propall`
 
-Each resulting feature retains its `HMPU_TARGETS` category label and a `typ` field (`"Existing"` or `"Proposed"`).
+Each resulting feature retains its `Habitat` category label and a `typ` field (`"Existing"` or `"Proposed"`).
 
 `nativelyr` is the union of `propall` and `exstall` for all categories except `Restorable`. It represents the current standing stock of native habitat that is already under some form of conservation protection.
 
@@ -125,8 +125,8 @@ All output files are written to `data/02_current_layers/`. Each layer is saved w
 
 | File pattern | Object | Type |
 |---|---|---|
-| `nativelyr_<county>.RData` | `nativelyr_<county>` | `sf` POLYGON, columns: `HMPU_TARGETS`, `typ` |
-| `restorelyr_<county>.RData` | `restorelyr_<county>` | `sf` POLYGON, columns: `HMPU_TARGETS`, `typ` |
+| `nativelyr_<county>.RData` | `nativelyr_<county>` | `sf` POLYGON, columns: `Habitat`, `typ` |
+| `restorelyr_<county>.RData` | `restorelyr_<county>` | `sf` POLYGON, columns: `Habitat`, `typ` |
 | `nativersrv_<county>.RData` | `nativersrv_<county>` | `sfc_POLYGON` (bare geometry) |
 | `restorersrv_<county>.RData` | `restorersrv_<county>` | `sfc_POLYGON` (bare geometry) |
 
