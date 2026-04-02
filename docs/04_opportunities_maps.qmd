@@ -84,7 +84,7 @@ All output files are written to `data/04_opportunities_maps/`. Each county produ
 | Pinellas | `oppmap_pinellas.RData` |
 | Sarasota | `oppmap_sarasota.RData` |
 
-## Map Colours
+## Mapping
 
 `oppmap_leaflet()` is a separate function that accepts the spatial output from `oppdat_fun()` and produces an interactive `leaflet` map. It is not called in `04_opportunity_maps.R` but is available for use in downstream analysis. The six opportunity categories use fixed colours for display:
 

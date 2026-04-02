@@ -72,7 +72,7 @@ All output files are written to `data/05_restoration_maps/`. Each county produce
 | Pinellas | `restmap_pinellas.RData` |
 | Sarasota | `restmap_sarasota.RData` |
 
-## Map Colours
+## Mapping
 
 `restmap_leaflet()` is a separate function that accepts the spatial output from `restdat_fun()` and produces an interactive `leaflet` map. It is not called in `05_restoration_maps.R` but is available for use in downstream analysis. The four restoration categories use fixed colours for display:
 

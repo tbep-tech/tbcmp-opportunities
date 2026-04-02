@@ -116,7 +116,7 @@ All output files are written to `data/03_current_summaries/`. Each file contains
 | `data/03_current_summaries/current_summary_pinellas.RData` | `current_summary_pinellas` |
 | `data/03_current_summaries/current_summary_sarasota.RData` | `current_summary_sarasota` |
 
-## Table Formatting
+## Table Output
 
 `curextab_fun()` is a separate function that accepts the data frame output of `curex_fun()` and formats it into a `flextable` suitable for reporting. It is not called in `03_current_summaries.R` but is available for use in downstream reporting. The formatted table:
 
