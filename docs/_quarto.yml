@@ -17,6 +17,9 @@ book:
         - 05_restoration_maps.qmd
 
 bibliography: refs.bib
+link-citations: true
+citations-hover: false
+citation-location: margin
 
 format:
   html:
