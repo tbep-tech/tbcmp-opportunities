@@ -9,6 +9,9 @@ book:
   chapters:
     - index.qmd
     - current_summaries.qmd
+    - part: "Opportunity Maps"
+      chapters:
+        - oppmap_citrus.qmd
     - part: "Steps"
       chapters:
         - 01_inputs.qmd
@@ -30,3 +33,8 @@ format:
     toc-depth: 3
     code-fold: true
     number-depth: 1
+
+execute:
+  echo: false
+  warning: false
+  message: false

@@ -2196,10 +2196,13 @@ oppdat_fun <- function(
 #'
 #' @param oppdat An \code{sf} object as returned by \code{oppdat_fun()}, with
 #'   a \code{cat} column identifying the opportunity category.
+#' @param county Character. County name.
+#' @param tbcmp_cnt \code{sf} polygon with one row per county and a \code{county}
+#' @param simplify Numeric. Optional tolerance for geometry simplification via \code{sf::st_simplify()} to speed up rendering. Units are in the layer's CRS (e.g., meters for a projected CRS).
 #'
 #' @return A \code{leaflet} map object.
 
-oppmap_leaflet <- function(oppdat) {
+oppmap_leaflet <- function(oppdat, county, tbcmp_cnt, simplify = NULL) {
   cols <- c(
     'Existing Conservation Native' = 'yellowgreen',
     'Existing Conservation Restorable' = 'green4',
@@ -2215,7 +2218,13 @@ oppmap_leaflet <- function(oppdat) {
     ordered = TRUE
   )
 
+  if (!is.null(simplify)) {
+    oppdat <- sf::st_simplify(oppdat, dTolerance = simplify)
+  }
+
   oppdat_4326 <- sf::st_transform(oppdat, 4326)
+  tbcmp_cnt_4326 <- sf::st_transform(tbcmp_cnt, 4326) |>
+    dplyr::filter(county == !!county)
 
   leaflet::leaflet() |>
     leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
@@ -2226,6 +2235,13 @@ oppmap_leaflet <- function(oppdat) {
       color = NA,
       weight = 0,
       label = ~cat
+    ) |>
+    leaflet::addPolygons(
+      data = tbcmp_cnt_4326,
+      fill = FALSE,
+      color = 'black',
+      weight = 1,
+      opacity = 0.5
     ) |>
     leaflet::addLegend(
       pal = pal,
