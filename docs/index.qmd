@@ -4,4 +4,4 @@ This document describes the methods used to create spatial layers for the Tampa 
 
 Layers are created for seven counties in the Tampa Bay region: Citrus, Hernando, Hillsborough, Manatee, Pasco, Pinellas, and Sarasota. County boundaries are derived from the 2025 TIGER/Line census subdivision files and projected to EPSG:3087 (NAD83(HARN) / Florida GDL Albers, meters) for all spatial analysis.
 
-Methods are reproduced from the Tampa Bay Estuary Program 2020 Habitat Master Plan update described in @tbep0720 and @tbep0223.
+Methods are reproduced from the Tampa Bay Estuary Program 2020 Habitat Master Plan update described in @tbep0720 and @tbep0223. Original code for the Habitat Master Plan is available at <https://github.com/tbep-tech/hmpu-workflow>.  [Claude Code](https://code.claude.com/docs/en/overview) was used extensively to adapt the original code herein, with all resulting products and documentation verified by a real human. 

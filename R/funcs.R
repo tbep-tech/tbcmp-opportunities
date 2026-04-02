@@ -1947,10 +1947,11 @@ curex_fun <- function(
 #'
 #' @param allsum     Data frame. Current extent summary (output from \code{curex_fun()}).
 #' @param county     Character. County name for the caption.
+#' @param strata     Data frame. Stratification lookup with \code{Category} and \code{Habitat}.
 #'
 #' @return A \code{flextable} object.
 
-curextab_fun <- function(allsum, county) {
+curextab_fun <- function(allsum, county, strata) {
   allsumfrm <- allsum %>%
     tidyr::gather('var', 'val', -Category, -Habitat, -unis) %>%
     dplyr::mutate(
