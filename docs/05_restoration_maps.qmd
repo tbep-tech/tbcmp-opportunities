@@ -6,7 +6,7 @@ This step builds spatial layers that characterize restoration potential within e
 
 ## Overview
 
-For each county, a single `sf` object is produced that dissolves restorable lands within existing conservation into four broad habitat categories for mapping. Only existing conservation lands are included; proposed conservation lands represent future acquisition opportunities and are intentionally excluded.
+For each county, a single `sf` object is produced that dissolves restorable lands within existing conservation into four broad habitat categories for mapping. Only existing conservation lands are included. Proposed conservation lands represent future acquisition opportunities and are intentionally excluded.
 
 The four output categories are:
 
@@ -47,7 +47,7 @@ The script loops over all seven counties in `tbcmp_cnt`. For each county:
 
 1. **Filter to existing conservation**: Rows where `typ == "Existing"` are retained. Proposed conservation lands are excluded.
 
-2. **Reclassify tidal categories**: `Mangrove Forests/Salt Barrens` and `Salt Marshes` are both relabelled as `Tidal Wetlands`. All other `HMPU_TARGETS` values (`Coastal Uplands`, `Freshwater Wetlands`, `Native Uplands`) are retained as-is.
+2. **Reclassify tidal categories**: `Mangrove Forests/Salt Barrens` and `Salt Marshes` are both relabelled as `Tidal Wetlands`. All other `HMPU_TARGETS` values (`Coastal Uplands`, `Freshwater Wetlands`, `Native Uplands`) are unchanged.
 
 3. **Dissolve by category**: Geometries are grouped by `HMPU_TARGETS` and dissolved using `fixgeo()`, which unions, casts to individual POLYGONs, and applies a zero buffer to resolve topology errors.
 
@@ -74,7 +74,7 @@ All output files are written to `data/05_restoration_maps/`. Each county produce
 
 ## Map Colours
 
-The four restoration categories use fixed colours consistent with the hmpu-workflow ggplot2 static maps:
+`restmap_leaflet()` is a separate function that accepts the spatial output from `restdat_fun()` and produces an interactive `leaflet` map. It is not called in `05_restoration_maps.R` but is available for use in downstream analysis. The four restoration categories use fixed colours for display:
 
 | Category | Colour |
 |---|---|
@@ -88,4 +88,4 @@ The four restoration categories use fixed colours consistent with the hmpu-workf
 | Function | Purpose |
 |---|---|
 | `restdat_fun()` | Filter to existing conservation, reclassify tidal categories, dissolve by `HMPU_TARGETS`, return `sf` |
-| `restmap_leaflet()` | Format `restdat_fun()` output into an interactive `leaflet` map for reporting |
+| `restmap_leaflet()` | Format `restdat_fun()` output into an interactive `leaflet` map for display |

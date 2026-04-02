@@ -10,14 +10,14 @@ For each county, a single `sf` object is produced that combines six opportunity 
 
 | Category | Description |
 |---|---|
-| Reservation Native | Native habitat in the coastal stratum that is unprotected or proposed for conservation |
-| Reservation Restorable | Restorable land in the coastal stratum that is unprotected or proposed for conservation |
 | Existing Conservation Native | Native habitat within existing conservation lands |
 | Existing Conservation Restorable | Restorable land within existing conservation lands |
 | Proposed Conservation Native | Native habitat within proposed conservation lands, outside the coastal stratum |
 | Proposed Conservation Restorable | Restorable land within proposed conservation lands, outside the coastal stratum |
+| Reservation Native | Native habitat in the coastal stratum that is unprotected or proposed for conservation |
+| Reservation Restorable | Restorable land in the coastal stratum that is unprotected or proposed for conservation |
 
-The reservation categories cover the coastal stratum opportunity space; the proposed conservation categories cover non-coastal proposed lands. Proposed conservation features within the coastal stratum are excluded to avoid double-counting with the reservation layers.
+The reservation categories cover the coastal stratum opportunity space and the proposed conservation categories cover non-coastal proposed lands. Proposed conservation features within the coastal stratum are excluded to avoid double-counting with the reservation layers.
 
 ## Input Layers
 
@@ -86,7 +86,7 @@ All output files are written to `data/04_opportunities_maps/`. Each county produ
 
 ## Map Colours
 
-The six opportunity categories use fixed colours consistent with the hmpu-workflow ggplot2 static maps:
+`oppmap_leaflet()` is a separate function that accepts the spatial output from `oppdat_fun()` and produces an interactive `leaflet` map. It is not called in `04_opportunity_maps.R` but is available for use in downstream analysis. The six opportunity categories use fixed colours for display:
 
 | Category | Colour |
 |---|---|
@@ -102,4 +102,4 @@ The six opportunity categories use fixed colours consistent with the hmpu-workfl
 | Function | Purpose |
 |---|---|
 | `oppdat_fun()` | Clip coastal stratum to county, assemble six opportunity categories, return combined `sf` |
-| `oppmap_leaflet()` | Format `oppdat_fun()` output into an interactive `leaflet` map for reporting |
+| `oppmap_leaflet()` | Format `oppdat_fun()` output into an interactive `leaflet` map for display |
