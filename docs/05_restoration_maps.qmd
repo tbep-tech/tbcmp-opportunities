@@ -1,0 +1,91 @@
+---
+title: "Restoration Maps"
+---
+
+This step builds spatial layers that characterize restoration potential within existing conservation lands for each of the seven TBCMP counties. All processing is implemented in `R/funcs.R` and executed in `R/05_restoration_maps.R`.
+
+## Overview
+
+For each county, a single `sf` object is produced that dissolves restorable lands within existing conservation into four broad habitat categories for mapping. Only existing conservation lands are included; proposed conservation lands represent future acquisition opportunities and are intentionally excluded.
+
+The four output categories are:
+
+| Category | Description |
+|---|---|
+| Coastal Uplands | Restorable upland habitat within the coastal stratum |
+| Freshwater Wetlands | Restorable wetland habitat outside the coastal stratum |
+| Native Uplands | Restorable upland habitat outside the coastal stratum |
+| Tidal Wetlands | Restorable tidal habitat (Mangrove Forests/Salt Barrens and Salt Marshes combined) |
+
+Mangrove Forests/Salt Barrens and Salt Marshes from `restorelyr` are merged into the single `Tidal Wetlands` category because the two habitat types share overlapping restoration potential at the mapping scale.
+
+## Input Layers
+
+One county-wide shared layer is loaded at the start of the script:
+
+| Object | File | Description |
+|---|---|---|
+| `tbcmp_cnt` | `data/01_inputs/tbcmp_cnt.RData` | Seven-county boundary polygons |
+
+One county-specific layer is loaded inside the loop for each county:
+
+| Object | File | Description |
+|---|---|---|
+| `restorelyr_<county>` | `data/02_current_layers/restorelyr_<county>.RData` | Restorable lands in conservation, with `HMPU_TARGETS` and `typ` columns |
+
+## County Processing Loop
+
+The script loops over all seven counties in `tbcmp_cnt`. For each county:
+
+1. Load `restorelyr_<county>` from `data/02_current_layers/`
+2. Call `restdat_fun()` to produce the dissolved restoration potential `sf` object
+3. Save the result as `restmap_<county>.RData` and `restmap_<county>.shp` in `data/05_restoration_maps/`
+
+## Restoration Layer Assembly
+
+`restdat_fun()` processes `restorelyr` in three steps:
+
+1. **Filter to existing conservation**: Rows where `typ == "Existing"` are retained. Proposed conservation lands are excluded.
+
+2. **Reclassify tidal categories**: `Mangrove Forests/Salt Barrens` and `Salt Marshes` are both relabelled as `Tidal Wetlands`. All other `HMPU_TARGETS` values (`Coastal Uplands`, `Freshwater Wetlands`, `Native Uplands`) are retained as-is.
+
+3. **Dissolve by category**: Geometries are grouped by `HMPU_TARGETS` and dissolved using `fixgeo()`, which unions, casts to individual POLYGONs, and applies a zero buffer to resolve topology errors.
+
+The result is an `sf` object with one row per category and a single `HMPU_TARGETS` attribute column.
+
+## Output Files
+
+All output files are written to `data/05_restoration_maps/`. Each county produces two files:
+
+| File | Description |
+|---|---|
+| `restmap_<county>.RData` | `sf` object with `HMPU_TARGETS` column (four restoration categories) |
+| `restmap_<county>.shp` | Shapefile equivalent of the same layer |
+
+| County | RData file |
+|---|---|
+| Citrus | `restmap_citrus.RData` |
+| Hernando | `restmap_hernando.RData` |
+| Hillsborough | `restmap_hillsborough.RData` |
+| Manatee | `restmap_manatee.RData` |
+| Pasco | `restmap_pasco.RData` |
+| Pinellas | `restmap_pinellas.RData` |
+| Sarasota | `restmap_sarasota.RData` |
+
+## Map Colours
+
+The four restoration categories use fixed colours consistent with the hmpu-workflow ggplot2 static maps:
+
+| Category | Colour |
+|---|---|
+| Coastal Uplands | `brown4` |
+| Freshwater Wetlands | `orange` |
+| Native Uplands | `darkgreen` |
+| Tidal Wetlands | `yellow` |
+
+## Key Functions
+
+| Function | Purpose |
+|---|---|
+| `restdat_fun()` | Filter to existing conservation, reclassify tidal categories, dissolve by `HMPU_TARGETS`, return `sf` |
+| `restmap_leaflet()` | Format `restdat_fun()` output into an interactive `leaflet` map for reporting |

@@ -2233,3 +2233,92 @@ oppmap_leaflet <- function(oppdat) {
       position = 'bottomright'
     )
 }
+
+#' Build restoration potential spatial layer for one county
+#'
+#' Filters \code{restorelyr} to existing conservation lands only, reclassifies
+#' \code{Mangrove Forests/Salt Barrens} and \code{Salt Marshes} into a combined
+#' \code{Tidal Wetlands} category, dissolves geometries by \code{HMPU_TARGETS},
+#' and returns an \code{sf} object suitable for mapping or export.
+#'
+#' Only existing conservation lands are included; proposed conservation lands
+#' are intentionally excluded from the restoration potential layer because they
+#' represent future acquisition opportunities, not current restoration capacity.
+#'
+#' @param restorelyr An \code{sf} object as returned by \code{build_current_lyrs()},
+#'   with columns \code{HMPU_TARGETS} and \code{typ} (\code{"Existing"} or
+#'   \code{"Proposed"}).
+#'
+#' @return An \code{sf} object with a single column \code{HMPU_TARGETS} and one
+#'   dissolved polygon per habitat category.
+
+restdat_fun <- function(restorelyr) {
+  restorelyr |>
+    dplyr::filter(typ == 'Existing') |>
+    dplyr::mutate(
+      HMPU_TARGETS = dplyr::case_when(
+        HMPU_TARGETS %in% c('Mangrove Forests/Salt Barrens', 'Salt Marshes') ~ 'Tidal Wetlands',
+        TRUE ~ HMPU_TARGETS
+      )
+    ) |>
+    dplyr::select(HMPU_TARGETS) |>
+    dplyr::group_by(HMPU_TARGETS) |>
+    tidyr::nest() |>
+    dplyr::mutate(geometry = purrr::map(data, fixgeo)) |>
+    dplyr::select(-data) |>
+    tidyr::unnest('geometry') |>
+    dplyr::ungroup() |>
+    sf::st_as_sf()
+}
+
+#' Interactive leaflet map of restoration potential layers
+#'
+#' Maps the output of \code{restdat_fun()} using \code{leaflet}, colouring
+#' polygons by habitat category. The colour palette matches the ggplot2 static
+#' maps from the original hmpu-workflow:
+#'
+#' \itemize{
+#'   \item Coastal Uplands — \code{brown4}
+#'   \item Freshwater Wetlands — \code{orange}
+#'   \item Native Uplands — \code{darkgreen}
+#'   \item Tidal Wetlands — \code{yellow}
+#' }
+#'
+#' @param restdat An \code{sf} object as returned by \code{restdat_fun()}, with
+#'   an \code{HMPU_TARGETS} column identifying the habitat category.
+#'
+#' @return A \code{leaflet} map object.
+
+restmap_leaflet <- function(restdat) {
+  cols <- c(
+    'Coastal Uplands'     = 'brown4',
+    'Freshwater Wetlands' = 'orange',
+    'Native Uplands'      = 'darkgreen',
+    'Tidal Wetlands'      = 'yellow'
+  )
+
+  pal <- leaflet::colorFactor(
+    palette = unname(cols),
+    levels  = names(cols),
+    ordered = TRUE
+  )
+
+  restdat_4326 <- sf::st_transform(restdat, 4326)
+
+  leaflet::leaflet() |>
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
+    leaflet::addPolygons(
+      data        = restdat_4326,
+      fillColor   = ~pal(HMPU_TARGETS),
+      fillOpacity = 0.7,
+      color       = NA,
+      weight      = 0,
+      label       = ~HMPU_TARGETS
+    ) |>
+    leaflet::addLegend(
+      pal      = pal,
+      values   = names(cols),
+      title    = 'Restoration Potential',
+      position = 'bottomright'
+    )
+}

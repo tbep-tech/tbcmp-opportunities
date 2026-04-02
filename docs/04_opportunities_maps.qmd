@@ -1,0 +1,105 @@
+---
+title: "Opportunity Maps"
+---
+
+This step builds spatial layers that characterize conservation opportunity areas for each of the seven TBCMP counties. All processing is implemented in `R/funcs.R` and executed in `R/04_opportunities_maps.R`.
+
+## Overview
+
+For each county, a single `sf` object is produced that combines six opportunity categories into one layer with a `cat` column:
+
+| Category | Description |
+|---|---|
+| Reservation Native | Native habitat in the coastal stratum that is unprotected or proposed for conservation |
+| Reservation Restorable | Restorable land in the coastal stratum that is unprotected or proposed for conservation |
+| Existing Conservation Native | Native habitat within existing conservation lands |
+| Existing Conservation Restorable | Restorable land within existing conservation lands |
+| Proposed Conservation Native | Native habitat within proposed conservation lands, outside the coastal stratum |
+| Proposed Conservation Restorable | Restorable land within proposed conservation lands, outside the coastal stratum |
+
+The reservation categories cover the coastal stratum opportunity space; the proposed conservation categories cover non-coastal proposed lands. Proposed conservation features within the coastal stratum are excluded to avoid double-counting with the reservation layers.
+
+## Input Layers
+
+Two county-wide shared layers are loaded at the start of the script:
+
+| Object | File | Description |
+|---|---|---|
+| `tbcmp_cnt` | `data/01_inputs/tbcmp_cnt.RData` | Seven-county boundary polygons |
+| `coastal_stratum` | `data/01_inputs/coastal_stratum.RData` | Coastal stratum (MLLW to 5 ft NAVD88) |
+
+Four county-specific layers are loaded inside the loop for each county:
+
+| Object | File | Description |
+|---|---|---|
+| `nativelyr_<county>` | `data/02_current_layers/nativelyr_<county>.RData` | Native habitats in conservation lands |
+| `restorelyr_<county>` | `data/02_current_layers/restorelyr_<county>.RData` | Restorable lands in conservation |
+| `nativersrv_<county>` | `data/02_current_layers/nativersrv_<county>.RData` | Native habitat reservation geometry |
+| `restorersrv_<county>` | `data/02_current_layers/restorersrv_<county>.RData` | Restorable land reservation geometry |
+
+## County Processing Loop
+
+The script loops over all seven counties in `tbcmp_cnt`. For each county:
+
+1. Load the four county-specific layers from `data/02_current_layers/`
+2. Call `oppdat_fun()` to produce the combined opportunity `sf` object
+3. Save the result as `oppmap_<county>.RData` and `oppmap_<county>.shp` in `data/04_opportunities_maps/`
+
+## Opportunity Layer Assembly
+
+`oppdat_fun()` assembles the six opportunity categories in two stages.
+
+### Coastal Stratum Clipping
+
+The coastal stratum is clipped to the county boundary and unioned into a single geometry (`unicoastal`). This is used to remove coastal stratum overlap from the proposed conservation layers so that the reservation and proposed categories do not double-count the same area.
+
+### Layer Construction
+
+Each of the six categories is built from the appropriate source layer:
+
+- **Reservation Native** and **Reservation Restorable**: The `nativersrv` and `restorersrv` bare geometries (already within the coastal stratum) are wrapped in `sf::st_sf()` and assigned their category label.
+- **Existing Conservation Native** and **Existing Conservation Restorable**: Features filtered to `typ == "Existing"` from `nativelyr` and `restorelyr` respectively.
+- **Proposed Conservation Native** and **Proposed Conservation Restorable**: Features filtered to `typ == "Proposed"` from `nativelyr` and `restorelyr`, then differenced against `unicoastal` to remove any coastal stratum overlap.
+
+All six layers are combined with `dplyr::bind_rows()` into a single `sf` object with a `cat` column.
+
+`fixgeo()` is applied at each stage to resolve topology errors before any spatial operations.
+
+## Output Files
+
+All output files are written to `data/04_opportunities_maps/`. Each county produces two files:
+
+| File | Description |
+|---|---|
+| `oppmap_<county>.RData` | `sf` object with `cat` column (six opportunity categories) |
+| `oppmap_<county>.shp` | Shapefile equivalent of the same layer |
+
+| County | RData file |
+|---|---|
+| Citrus | `oppmap_citrus.RData` |
+| Hernando | `oppmap_hernando.RData` |
+| Hillsborough | `oppmap_hillsborough.RData` |
+| Manatee | `oppmap_manatee.RData` |
+| Pasco | `oppmap_pasco.RData` |
+| Pinellas | `oppmap_pinellas.RData` |
+| Sarasota | `oppmap_sarasota.RData` |
+
+## Map Colours
+
+The six opportunity categories use fixed colours consistent with the hmpu-workflow ggplot2 static maps:
+
+| Category | Colour |
+|---|---|
+| Existing Conservation Native | `yellowgreen` |
+| Existing Conservation Restorable | `green4` |
+| Proposed Conservation Native | `dodgerblue1` |
+| Proposed Conservation Restorable | `dodgerblue4` |
+| Reservation Native | `violetred1` |
+| Reservation Restorable | `violetred3` |
+
+## Key Functions
+
+| Function | Purpose |
+|---|---|
+| `oppdat_fun()` | Clip coastal stratum to county, assemble six opportunity categories, return combined `sf` |
+| `oppmap_leaflet()` | Format `oppdat_fun()` output into an interactive `leaflet` map for reporting |

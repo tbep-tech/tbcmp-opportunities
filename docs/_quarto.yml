@@ -12,6 +12,9 @@ book:
       chapters:
         - 01_inputs.qmd
         - 02_current_layers.qmd
+        - 03_current_summaries.qmd
+        - 04_opportunities_maps.qmd
+        - 05_restoration_maps.qmd
 
 bibliography: refs.bib
 
