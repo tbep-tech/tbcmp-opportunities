@@ -21,6 +21,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.3'
+          use-public-rspm: true        # faster binary installs from Posit Package Manager
+
+      - name: Restore renv cache
+        uses: actions/cache@v4
+        with:
+          path: renv/library
+          key: ${{ runner.os }}-renv-${{ hashFiles('renv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-renv-
+
+      - name: Restore renv environment
+        run: Rscript -e "renv::restore()"
+
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 

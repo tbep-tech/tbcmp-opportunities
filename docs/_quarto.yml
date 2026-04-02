@@ -8,6 +8,7 @@ book:
   date: today
   chapters:
     - index.qmd
+    - products.qmd
     - part: "Steps"
       chapters:
         - 01_inputs.qmd

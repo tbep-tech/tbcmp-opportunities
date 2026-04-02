@@ -1,0 +1,77 @@
+# Products {.unnumbered}
+
+```{r}
+#| include: false
+library(here)
+library(flextable)
+
+source(here("R", "funcs.R"))
+
+load(
+  file = here("data", "03_current_summaries", "current_summary_citrus.RData")
+)
+load(
+  file = here("data", "03_current_summaries", "current_summary_hernando.RData")
+)
+load(
+  file = here(
+    "data",
+    "03_current_summaries",
+    "current_summary_hillsborough.RData"
+  )
+)
+load(
+  file = here("data", "03_current_summaries", "current_summary_manatee.RData")
+)
+load(file = here("data", "03_current_summaries", "current_summary_pasco.RData"))
+load(
+  file = here("data", "03_current_summaries", "current_summary_pinellas.RData")
+)
+load(
+  file = here("data", "03_current_summaries", "current_summary_sarasota.RData")
+)
+```
+
+::: {.panel-tabset .nav-pills}
+
+## Citrus
+
+```{r}
+curextab_fun(current_summary_citrus, "Citrus")
+```
+
+## Hernando
+
+```{r}
+curextab_fun(current_summary_hernando, "Hernando")
+```
+
+## Hillsborough
+
+```{r}
+curextab_fun(current_summary_hillsborough, "Hillsborough")
+```
+
+## Manatee
+
+```{r}
+curextab_fun(current_summary_manatee, "Manatee")
+```
+
+## Pasco
+```{r}
+curextab_fun(current_summary_pasco, "Pasco")
+```
+
+## Pinellas
+```{r}
+curextab_fun(current_summary_pinellas, "Pinellas")
+```
+
+## Sarasota
+
+```{r}
+curextab_fun(current_summary_sarasota, "Sarasota")
+```
+
+:::
