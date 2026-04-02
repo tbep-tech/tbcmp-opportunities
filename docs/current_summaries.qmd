@@ -1,9 +1,11 @@
-# Products {.unnumbered}
+# Current Summaries {.unnumbered}
 
 ```{r}
 #| include: false
 library(here)
 library(flextable)
+
+i_am('docs/03_current_summaries.qmd')
 
 source(here("R", "funcs.R"))
 

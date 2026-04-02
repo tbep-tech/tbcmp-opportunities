@@ -1,7 +1,6 @@
 project:
   type: book
   output-dir: _book
-  execute-dir: project
 
 book:
   title: "TBCMP Opportunity Analysis"
@@ -9,7 +8,7 @@ book:
   date: today
   chapters:
     - index.qmd
-    - products.qmd
+    - current_summaries.qmd
     - part: "Steps"
       chapters:
         - 01_inputs.qmd
