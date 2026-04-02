@@ -4,6 +4,7 @@
 #| include: false
 library(here)
 library(flextable)
+library(dplyr)
 
 i_am('docs/03_current_summaries.qmd')
 
