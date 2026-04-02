@@ -1,4 +1,4 @@
-# Opportunity Areas in Citrus County {.unnumbered}
+# Citrus {.unnumbered}
 
 ```{r}
 #| include: false
@@ -16,6 +16,6 @@ load(file = here('data', '04_opportunities_maps', 'oppmap_citrus.RData'))
 
 ```{r}
 #| fig-height: 8
-oppmap_leaflet(oppmap_citrus, 'Citrus', tbcmp_cnt, simplify = 100)
+oppmap_leaflet(oppmap_citrus, 'Citrus', tbcmp_cnt, simplify = 10)
 ```
 Note: polygons have been simplified for web display. 

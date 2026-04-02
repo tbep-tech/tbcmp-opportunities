@@ -1,0 +1,21 @@
+# Pinellas {.unnumbered}
+
+```{r}
+#| include: false
+library(leaflet)
+library(here)
+library(sf)
+
+i_am("docs/oppmap_pinellas.qmd")
+
+source(here("R", "funcs.R"))
+
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
+load(file = here('data', '04_opportunities_maps', 'oppmap_pinellas.RData'))
+```
+
+```{r}
+#| fig-height: 8
+oppmap_leaflet(oppmap_pinellas, 'Pinellas', tbcmp_cnt, simplify = 10)
+```
+Note: polygons have been simplified for web display.

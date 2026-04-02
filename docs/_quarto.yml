@@ -9,9 +9,17 @@ book:
   chapters:
     - index.qmd
     - current_summaries.qmd
-    - part: "Opportunity Maps"
+    - part: "County Opportunity Maps"
       chapters:
         - oppmap_citrus.qmd
+        - oppmap_hernando.qmd
+        - oppmap_hillsborough.qmd
+        - oppmap_manatee.qmd
+        - oppmap_pasco.qmd
+        - oppmap_pinellas.qmd
+        - oppmap_sarasota.qmd
+
+
     - part: "Steps"
       chapters:
         - 01_inputs.qmd

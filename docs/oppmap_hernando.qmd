@@ -1,0 +1,21 @@
+# Hernando {.unnumbered}
+
+```{r}
+#| include: false
+library(leaflet)
+library(here)
+library(sf)
+
+i_am("docs/oppmap_hernando.qmd")
+
+source(here("R", "funcs.R"))
+
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
+load(file = here('data', '04_opportunities_maps', 'oppmap_hernando.RData'))
+```
+
+```{r}
+#| fig-height: 8
+oppmap_leaflet(oppmap_hernando, 'Hernando', tbcmp_cnt, simplify = 10)
+```
+Note: polygons have been simplified for web display.
