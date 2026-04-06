@@ -4,7 +4,7 @@ This document describes the methods used to create spatial layers for the Tampa 
 
 Methods are reproduced from the Tampa Bay Estuary Program 2020 Habitat Master Plan update described in @tbep0720 and @tbep0223. All processing is implemented in numbered R scripts, described sequentially in the [Steps](01_inputs.html) sections. All source code is available at <https://github.com/tbep-tech/tbcmp-opportunities>. Original code for the Habitat Master Plan is available at <https://github.com/tbep-tech/hmpu-workflow>.  [Claude Code](https://code.claude.com/docs/en/overview) was used extensively to adapt the original code herein, with all resulting products and documentation verified by a real human. 
 
-Opportunity areas are defined as follows:
+Opportunity areas for each county can be downloaded [here](https://github.com/tbep-tech/tbcmp-opportunities/raw/refs/heads/main/data/04_opportunities_maps/oppmap_shp.zip) and are defined as follows:
 
 | Category | Description |
 |---|---|
@@ -16,7 +16,7 @@ Opportunity areas are defined as follows:
 | Reservation Restorable | Restorable land in the coastal stratum that is unprotected or proposed for conservation |
 <br>
 
-Restoration potentials are defined as follows:
+Restoration potentials for each county can be downloaded [here](https://github.com/tbep-tech/tbcmp-opportunities/raw/refs/heads/main/data/05_restoration_maps/restmap_shp.zip) and are defined as follows:
 
 | Category | Description |
 |---|---|

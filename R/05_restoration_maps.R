@@ -45,6 +45,18 @@ for (county in tbcmp_cnt$county) {
   message('  Saved ', obj_name)
 }
 
+# save all shapefiles in a single zipped folder called restmap_shp
+shp_files <- list.files(
+  out_dir,
+  pattern = '\\.(shp|dbf|shx|prj|cpg|sbn|sbx|xml)$',
+  full.names = TRUE
+)
+zip::zip(
+  zipfile = file.path(out_dir, 'restmap_shp.zip'),
+  files = shp_files,
+  mode = 'cherry-pick'
+)
+
 # view map
 load(here('data', '05_restoration_maps', 'restmap_pinellas.RData'))
 

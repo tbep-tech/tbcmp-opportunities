@@ -1,5 +1,7 @@
 # Hillsborough {.unnumbered}
 
+Download zipped file [here](https://github.com/tbep-tech/tbcmp-opportunities/raw/refs/heads/main/data/05_restoration_maps/restmap_shp.zip).
+
 ```{r}
 #| include: false
 library(leaflet)
