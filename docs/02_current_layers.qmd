@@ -90,7 +90,7 @@ Each soil group is then split by intersection with the coastal stratum:
 
 Tidal wetlands (non-xeric soils within the coastal stratum) are split by intersection with the salinity layer:
 
-- Tidal wetlands in the 0.5–18 psu zone to `Salt Marshes` (dominated by *Juncus* and *Spartina*, following the 18 psu boundary follows @eleuterius1979)
+- Tidal wetlands in the 0.5–18 psu zone to `Salt Marshes` (following the 18 psu boundary follows @eleuterius1979)
 - Tidal wetlands in all other salinity zones (Fresh < 0.5 psu and Euhaline > 18 psu) to `Mangrove Forests/Salt Barrens`
 
 The classification logic is summarised in the decision tree below:

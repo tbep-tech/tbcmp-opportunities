@@ -1959,17 +1959,6 @@ curextab_fun <- function(allsum, county, strata) {
         !is.na(val) ~ paste(prettyNum(round(val, 0), big.mark = ','), unis),
         TRUE ~ 'N/A'
       ),
-      val = dplyr::case_when(
-        (Habitat %in% 'Salt Marshes') &
-          (var %in%
-            c(
-              'total restorable',
-              'restorable Existing',
-              'restorable Proposed'
-            )) ~
-          paste(val, '(JU)'),
-        TRUE ~ val
-      ),
       Category = factor(
         Category,
         levels = c('Subtidal', 'Intertidal', 'Supratidal')
@@ -2039,13 +2028,6 @@ curextab_fun <- function(allsum, county, strata) {
       values = c('', 'Native Habitats', 'Restorable Habitats')
     ) %>%
     flextable::add_footer_lines(values = '') %>%
-    flextable::add_footer_lines(
-      values = flextable::as_paragraph(
-        'N/A - Not Applicable; JU - Potential ',
-        flextable::as_i('Juncus'),
-        ' Marsh Opportunity'
-      )
-    ) %>%
     flextable::fontsize(size = 8, part = 'footer') %>%
     flextable::align(align = 'center', part = 'header') %>%
     flextable::align(

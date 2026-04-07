@@ -123,7 +123,6 @@ All output files are written to `data/03_current_summaries/`. Each file contains
 - Groups rows by tidal stratum (`Subtidal`, `Intertidal`, `Supratidal`) with coloured header rows
 - Adds a two-tier column header grouping columns into `Native Habitats` and `Restorable Habitats`
 - Merges restorable cells for `Non-Forested` and `Forested Freshwater Wetlands`, and for `Mangrove Forests` and `Salt Barrens`, which share the same underlying restorable geometry
-- Annotates Salt Marsh restorable cells with `(JU)` for *Juncus* marsh opportunity
 - Applies styling (Roboto font, teal header colours, inner and outer borders)
 
 ## Key Functions
