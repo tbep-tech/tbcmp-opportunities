@@ -518,6 +518,8 @@ for (county in tbcmp_cnt$county) {
 }
 
 # check county seagrass
+load(file = here('data', '01_inputs', 'seagrass_manatee.RData'))
+load(file = here('data', '01_inputs', 'seagrass_sarasota.RData'))
 co1_4326 <- st_transform(seagrass_manatee, 4326)
 co2_4326 <- st_transform(seagrass_sarasota, 4326)
 

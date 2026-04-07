@@ -2190,15 +2190,10 @@ oppmap_leaflet <- function(oppdat, county, tbcmp_cnt, simplify = NULL) {
     'Existing Conservation Restorable' = 'green4',
     'Proposed Conservation Native' = 'dodgerblue1',
     'Proposed Conservation Restorable' = 'dodgerblue4',
-    'Reservation Native' = 'violetred1',
+    'Reservation Native' = 'violet',
     'Reservation Restorable' = 'violetred3'
   )
-
-  pal <- leaflet::colorFactor(
-    palette = unname(cols),
-    levels = names(cols),
-    ordered = TRUE
-  )
+  cols <- sapply(cols, function(x) { v <- col2rgb(x); sprintf('#%02X%02X%02X', v[1], v[2], v[3]) }, USE.NAMES = TRUE)
 
   if (!is.null(simplify)) {
     oppdat <- sf::st_simplify(oppdat, dTolerance = simplify)
@@ -2208,16 +2203,27 @@ oppmap_leaflet <- function(oppdat, county, tbcmp_cnt, simplify = NULL) {
   tbcmp_cnt_4326 <- sf::st_transform(tbcmp_cnt, 4326) |>
     dplyr::filter(county == !!county)
 
-  leaflet::leaflet() |>
-    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
-    leaflet::addPolygons(
-      data = oppdat_4326,
-      fillColor = ~ pal(cat),
+  m <- leaflet::leaflet() |>
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron)
+
+  for (cat_nm in names(cols)) {
+    cat_data <- dplyr::filter(oppdat_4326, cat == cat_nm)
+    if (nrow(cat_data) == 0) next
+    m <- leaflet::addPolygons(
+      m,
+      data = cat_data,
+      fillColor = cols[[cat_nm]],
       fillOpacity = 0.7,
       color = NA,
       weight = 0,
-      label = ~cat
-    ) |>
+      label = ~cat,
+      group = cat_nm
+    )
+  }
+
+  present_cats <- names(cols)[names(cols) %in% unique(oppdat_4326$cat)]
+
+  m |>
     leaflet::addPolygons(
       data = tbcmp_cnt_4326,
       fill = FALSE,
@@ -2225,9 +2231,13 @@ oppmap_leaflet <- function(oppdat, county, tbcmp_cnt, simplify = NULL) {
       weight = 1,
       opacity = 0.5
     ) |>
+    leaflet::addLayersControl(
+      overlayGroups = present_cats,
+      options = leaflet::layersControlOptions(collapsed = FALSE)
+    ) |>
     leaflet::addLegend(
-      pal = pal,
-      values = names(cols),
+      colors = unname(cols[present_cats]),
+      labels = present_cats,
       title = 'Opportunity',
       position = 'bottomright'
     )
@@ -2299,12 +2309,7 @@ restmap_leaflet <- function(restdat, county, tbcmp_cnt, simplify = NULL) {
     'Native Uplands' = 'darkgreen',
     'Tidal Wetlands' = 'yellow'
   )
-
-  pal <- leaflet::colorFactor(
-    palette = unname(cols),
-    levels = names(cols),
-    ordered = TRUE
-  )
+  cols <- sapply(cols, function(x) { v <- col2rgb(x); sprintf('#%02X%02X%02X', v[1], v[2], v[3]) }, USE.NAMES = TRUE)
 
   if (!is.null(simplify)) {
     restdat <- sf::st_simplify(restdat, dTolerance = simplify)
@@ -2314,16 +2319,27 @@ restmap_leaflet <- function(restdat, county, tbcmp_cnt, simplify = NULL) {
   tbcmp_cnt_4326 <- sf::st_transform(tbcmp_cnt, 4326) |>
     dplyr::filter(county == !!county)
 
-  leaflet::leaflet() |>
-    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
-    leaflet::addPolygons(
-      data = restdat_4326,
-      fillColor = ~ pal(Habitat),
+  m <- leaflet::leaflet() |>
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron)
+
+  for (hab_nm in names(cols)) {
+    hab_data <- dplyr::filter(restdat_4326, Habitat == hab_nm)
+    if (nrow(hab_data) == 0) next
+    m <- leaflet::addPolygons(
+      m,
+      data = hab_data,
+      fillColor = cols[[hab_nm]],
       fillOpacity = 0.7,
       color = NA,
       weight = 0,
-      label = ~Habitat
-    ) |>
+      label = ~Habitat,
+      group = hab_nm
+    )
+  }
+
+  present_habs <- names(cols)[names(cols) %in% unique(restdat_4326$Habitat)]
+
+  m |>
     leaflet::addPolygons(
       data = tbcmp_cnt_4326,
       fill = FALSE,
@@ -2331,9 +2347,13 @@ restmap_leaflet <- function(restdat, county, tbcmp_cnt, simplify = NULL) {
       weight = 1,
       opacity = 0.5
     ) |>
+    leaflet::addLayersControl(
+      overlayGroups = present_habs,
+      options = leaflet::layersControlOptions(collapsed = FALSE)
+    ) |>
     leaflet::addLegend(
-      pal = pal,
-      values = names(cols),
+      colors = unname(cols[present_habs]),
+      labels = present_habs,
       title = 'Restoration Potential',
       position = 'bottomright'
     )
