@@ -53,6 +53,7 @@ for (county in tbcmp_cnt$county) {
 
 # compare Hillsborough new with HMPU
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/restorelyr.RData')
+load(file = here('data', '02_current_layers', 'restorelyr_hillsborough.RData'))
 
 cmp1 <- st_transform(restorelyr, 4326)
 cmp2 <- st_transform(restorelyr_hillsborough, 4326)
