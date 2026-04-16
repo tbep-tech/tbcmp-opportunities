@@ -1733,7 +1733,7 @@ build_current_lyrs <- function(
 lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
   # FLUCCS codes to remove: subtidal and open-water features tracked separately
   # (bays/estuaries, major water bodies, gulf, tidal flats, oyster bars,
-  # submerged sand, patchy/continuous seagrass, attached algae, hardbottom)
+  # submerged sand, patchy/composite/continuous seagrass, attached algae, hardbottom)
   cds <- c(
     5400,
     5700,
@@ -1742,6 +1742,7 @@ lulc_est <- function(lulcin, coastal, fluccs, sumout = TRUE) {
     6540,
     7210,
     9113,
+    9115,
     9116,
     9121,
     9510,
@@ -2193,7 +2194,14 @@ oppmap_leaflet <- function(oppdat, county, tbcmp_cnt, simplify = NULL) {
     'Reservation Native' = 'violet',
     'Reservation Restorable' = 'violetred3'
   )
-  cols <- sapply(cols, function(x) { v <- col2rgb(x); sprintf('#%02X%02X%02X', v[1], v[2], v[3]) }, USE.NAMES = TRUE)
+  cols <- sapply(
+    cols,
+    function(x) {
+      v <- col2rgb(x)
+      sprintf('#%02X%02X%02X', v[1], v[2], v[3])
+    },
+    USE.NAMES = TRUE
+  )
 
   if (!is.null(simplify)) {
     oppdat <- sf::st_simplify(oppdat, dTolerance = simplify)
@@ -2208,7 +2216,9 @@ oppmap_leaflet <- function(oppdat, county, tbcmp_cnt, simplify = NULL) {
 
   for (cat_nm in names(cols)) {
     cat_data <- dplyr::filter(oppdat_4326, cat == cat_nm)
-    if (nrow(cat_data) == 0) next
+    if (nrow(cat_data) == 0) {
+      next
+    }
     m <- leaflet::addPolygons(
       m,
       data = cat_data,
@@ -2309,7 +2319,14 @@ restmap_leaflet <- function(restdat, county, tbcmp_cnt, simplify = NULL) {
     'Native Uplands' = 'darkgreen',
     'Tidal Wetlands' = 'yellow'
   )
-  cols <- sapply(cols, function(x) { v <- col2rgb(x); sprintf('#%02X%02X%02X', v[1], v[2], v[3]) }, USE.NAMES = TRUE)
+  cols <- sapply(
+    cols,
+    function(x) {
+      v <- col2rgb(x)
+      sprintf('#%02X%02X%02X', v[1], v[2], v[3])
+    },
+    USE.NAMES = TRUE
+  )
 
   if (!is.null(simplify)) {
     restdat <- sf::st_simplify(restdat, dTolerance = simplify)
@@ -2324,7 +2341,9 @@ restmap_leaflet <- function(restdat, county, tbcmp_cnt, simplify = NULL) {
 
   for (hab_nm in names(cols)) {
     hab_data <- dplyr::filter(restdat_4326, Habitat == hab_nm)
-    if (nrow(hab_data) == 0) next
+    if (nrow(hab_data) == 0) {
+      next
+    }
     m <- leaflet::addPolygons(
       m,
       data = hab_data,
