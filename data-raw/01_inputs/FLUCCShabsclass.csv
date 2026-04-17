@@ -51,6 +51,7 @@ FLUCCSCODE,FIRST_FLUC,HMPU_GROUP,HMPU_CLASS,HMPU_DESCRIPTOR,HMPU_TARGETS
 6600,SALT FLATS,Native,Emergent Tidal Wetlands,Salt_Barrens,Salt Barrens
 7210,SAND OTHER THAN BEACHES SUBMERGED,Native,Subtidal,Tidal_Flats,Tidal Flats
 9113,Patchy Seagrass,Native,Subtidal,Patchy_Seagrass,Seagrasses
+9115,Composite Colonized Seagrass,Native,Subtidal,Composite_Colonized_Seagrass,Seagrasses
 9116,Continuous Seagrass,Native,Subtidal,Continuous_Seagrass,Seagrasses
 9121,Attached Algae,Native,Subtidal,Algae,Open Water
 9510,SMB/AR,Native,Subtidal,Hard_Bottom,Hard Bottom

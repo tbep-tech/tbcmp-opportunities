@@ -189,6 +189,7 @@ save(
 )
 
 # compare to original TB salinity layer
+load(file = here('data', '01_inputs', 'salinity_layer.RData'))
 load(file = 'T:/04_STAFF/MARCUS/03_GIT/hmpu-workflow/data/salin.RData')
 
 salinity_layer_4326 <- st_transform(salinity_layer, 4326)
@@ -250,7 +251,7 @@ soils <- build_soils_layer(tbcmp_cnt, crs = prj)
 save(soils, file = here('data', '01_inputs', 'soils.RData'), compress = 'xz')
 
 # load original TB-only soils for comparison
-
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
 load(file = here('data', '01_inputs', 'soils.RData'))
 soils_4326 <- st_transform(soils, 4326)
 
@@ -517,6 +518,8 @@ for (county in tbcmp_cnt$county) {
 }
 
 # check county seagrass
+load(file = here('data', '01_inputs', 'seagrass_manatee.RData'))
+load(file = here('data', '01_inputs', 'seagrass_sarasota.RData'))
 co1_4326 <- st_transform(seagrass_manatee, 4326)
 co2_4326 <- st_transform(seagrass_sarasota, 4326)
 

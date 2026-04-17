@@ -65,11 +65,11 @@ for (county in tbcmp_cnt$county) {
   message('  Saved as ', obj_name, '.RData')
 }
 
-
 #  table example ---------------------------------------------------------
 
+load(file = here('data', '01_inputs', 'strata.RData'))
 load(
   file = here('data', '03_current_summaries', 'current_summary_pinellas.RData')
 )
 
-curextab_fun(current_summary_pinellas, county = 'Pinellas')
+curextab_fun(current_summary_pinellas, county = 'Pinellas', strata)
