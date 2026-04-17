@@ -1210,50 +1210,33 @@ fetch_lulc <- function(county) {
     sf::st_make_valid()
 }
 
-#' Download and combine SWFWMD seagrass layers
+#' Read and combine SWFWMD seagrass layers from local shapefiles
 #'
-#' Downloads the 2024 seagrass mapping layers for the Suncoast and Springs Coast
-#' study areas from the SWFWMD ArcGIS REST services and combines them into a
-#' single layer. Both sources are assumed to have no spatial overlap; a
-#' \code{source} column is added before combining to preserve provenance.
+#' Reads the 2024 seagrass mapping layers for the Suncoast and Springs Coast
+#' study areas from local SWFWMD shapefiles and combines them into a single
+#' layer. Both sources are assumed to have no spatial overlap; a \code{source}
+#' column is added before combining to preserve provenance.
 #'
 #' Sources:
 #' \itemize{
-#'   \item Suncoast: \url{https://data-swfwmd.opendata.arcgis.com/datasets/swfwmd::seagrass-in-2024/about}
-#'   \item Springs Coast: \url{https://data-swfwmd.opendata.arcgis.com/datasets/swfwmd::seagrass-in-2024-for-the-springs-coast/about}
+#'   \item Suncoast: \code{T:/05_GIS/TBEP/TBCMP/Seagrass_in_2024.shp}
+#'   \item Springs Coast: \code{T:/05_GIS/TBEP/TBCMP/Seagrass_in_2024_for_the_Springs_Coast.shp}
 #' }
 #'
 #' @return An \code{sf} polygon object in EPSG:3087 with columns \code{source},
 #'   \code{FLUCCSCODE}, and \code{FLUCCSDESC}.
 
 fetch_seagrass <- function() {
-  urls <- c(
-    suncoast = "https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Environmental_Seagrass2018_sql/MapServer/3/query?outFields=*&where=1%3D1&f=geojson",
-    springs_coast = "https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4/query?outFields=*&where=1%3D1&f=geojson"
+  paths <- c(
+    suncoast = "T:/05_GIS/TBEP/TBCMP/Seagrass_in_2024.shp",
+    springs_coast = "T:/05_GIS/TBEP/TBCMP/Seagrass_in_2024_for_the_Springs_Coast.shp"
   )
 
-  layers <- lapply(names(urls), function(src) {
-    message("Downloading seagrass: ", src, " ...")
-    tmp <- tempfile(fileext = ".gpkg")
-    on.exit(unlink(tmp), add = TRUE)
-    sf::gdal_utils(
-      util = "vectortranslate",
-      source = urls[[src]],
-      destination = tmp,
-      options = c(
-        "-nlt",
-        "PROMOTE_TO_MULTI",
-        "-nlt",
-        "CONVERT_TO_LINEAR",
-        "-f",
-        "GPKG",
-        "-lco",
-        "SPATIAL_INDEX=NO"
-      )
-    )
-    sf::st_read(tmp, quiet = TRUE) |>
+  layers <- lapply(names(paths), function(src) {
+    message("Reading seagrass: ", src, " ...")
+    sf::st_read(paths[[src]], quiet = TRUE) |>
       dplyr::mutate(source = src, .before = 1) |>
-      dplyr::select(source, FLUCCSCODE, FLUCCSDESC, geom)
+      dplyr::select(source, FLUCCSCODE, FLUCCSDESC)
   })
 
   dplyr::bind_rows(layers) |>
