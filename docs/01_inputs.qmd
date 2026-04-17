@@ -366,18 +366,18 @@ Seagrass (subtidal) data are obtained for the seven-county area from two SWFWMD 
 
 ### Source Data
 
-The 2024 seagrass mapping layers are available from SWFWMD ArcGIS REST services. Two survey areas are used:
+The 2024 seagrass mapping layers are read from local SWFWMD shapefiles. Two survey areas are used:
 
-| Survey Area | REST Service URL |
+| Survey Area | Shapefile |
 |---|---|
-| Suncoast | `https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Environmental_Seagrass2018_sql/MapServer/3` |
-| Springs Coast | `https://www45.swfwmd.state.fl.us/arcgis12/rest/services/OpenData/Env_sg_springscoast/MapServer/4` |
+| Suncoast | `T:/05_GIS/TBEP/TBCMP/Seagrass_in_2024.shp` |
+| Springs Coast | `T:/05_GIS/TBEP/TBCMP/Seagrass_in_2024_for_the_Springs_Coast.shp` |
 
-Each layer is queried as GeoJSON (`outFields=*&where=1=1&f=geojson`). Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the `FLUCCSCODE` field and the description in `FLUCCSDESC`.
+Polygons are classified using the Florida Land Use, Cover and Forms Classification System (FLUCCS), with the classification code stored in the `FLUCCSCODE` field and the description in `FLUCCSDESC`.
 
 ### Processing
 
-Each GeoJSON layer is routed through GDAL `vectortranslate` to linearize any curve geometries before reading. Both layers are tagged with a `source` field (`suncoast` or `springs_coast`), combined with `dplyr::bind_rows()`, reprojected to EPSG:3087, and validated with `sf::st_make_valid()`.
+Both shapefiles are read directly with `sf::st_read()`. Each layer is tagged with a `source` field (`suncoast` or `springs_coast`), combined with `dplyr::bind_rows()`, reprojected to EPSG:3087, and validated with `sf::st_make_valid()`.
 
 The combined layer is then clipped to each county boundary by `clip_seagrass()`, which takes the combined layer, `tbcmp_cnt`, and a county name as inputs and returns the clipped `sf` object. The returned object is saved from the calling script. Each county produces a separate RData file:
 
@@ -395,5 +395,5 @@ The combined layer is then clipped to each county boundary by `clip_seagrass()`,
 
 | Function | Purpose |
 |---|---|
-| `fetch_seagrass()` | Download and combine both SWFWMD seagrass survey layers; returns a single `sf` object |
+| `fetch_seagrass()` | Read and combine both SWFWMD seagrass shapefiles; returns a single `sf` object |
 | `clip_seagrass(seagrass_all, tbcmp_cnt, county)` | Clip the combined layer to one county boundary; returns an `sf` object |
