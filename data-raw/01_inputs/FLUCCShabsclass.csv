@@ -53,7 +53,8 @@ FLUCCSCODE,FIRST_FLUC,HMPU_GROUP,HMPU_CLASS,HMPU_DESCRIPTOR,HMPU_TARGETS
 9113,Patchy Seagrass,Native,Subtidal,Patchy_Seagrass,Seagrasses
 9115,Composite Colonized Seagrass,Native,Subtidal,Composite_Colonized_Seagrass,Seagrasses
 9116,Continuous Seagrass,Native,Subtidal,Continuous_Seagrass,Seagrasses
-9121,Attached Algae,Native,Subtidal,Algae,Open Water
+9121,Attached Algae,Native,Subtidal,Tidal_Flats,Tidal Flats
+9122,Composite Colonized Algae,Native,Subtidal,Tidal_Flats,Tidal Flats
 9510,SMB/AR,Native,Subtidal,Hard_Bottom,Hard Bottom
 9511,SMB/Boulder Field,Native,Subtidal,Hard_Bottom,Hard Bottom
 9512,SMB/Cobble-sized,Native,Subtidal,Hard_Bottom,Hard Bottom

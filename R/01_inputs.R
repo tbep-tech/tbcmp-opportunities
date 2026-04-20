@@ -24,7 +24,6 @@ fluccs <- read.csv(
 ) |>
   rename(Habitat = HMPU_TARGETS)
 
-
 save(fluccs, file = here('data', '01_inputs', 'fluccs.RData'), compress = 'xz')
 
 # stratification lookup table ---------------------------------------------
