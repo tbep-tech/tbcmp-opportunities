@@ -463,10 +463,13 @@ leaflet() |>
 
 # LULC -------------------------------------------------------------------
 
+load(file = here('data', '01_inputs', 'tbcmp_cnt.RData'))
+lulc_all <- fetch_lulc()
+
 for (county in tbcmp_cnt$county) {
   county_lower <- tolower(county)
   obj_name <- paste0('lulc_', county_lower)
-  assign(obj_name, fetch_lulc(county))
+  assign(obj_name, clip_lulc(lulc_all, tbcmp_cnt, county))
   save(
     list = obj_name,
     file = here('data', '01_inputs', paste0(obj_name, '.RData')),

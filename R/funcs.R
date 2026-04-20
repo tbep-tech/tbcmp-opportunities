@@ -1152,61 +1152,99 @@ fetch_aqprs <- function(
     sf::st_make_valid()
 }
 
-#' Download a single county LULC shapefile from SWFWMD
+#' Read or download SWFWMD LULC layer
 #'
-#' Downloads the 2023 Land Use Land Cover shapefile for one TBCMP county from
-#' the Southwest Florida Water Management District (SWFWMD) ArcGIS portal,
-#' reprojects to EPSG:3087, and returns the result. The temporary zip and
-#' extraction directory are deleted before returning.
+#' Returns the 2023 Land Use Land Cover layer from the Southwest Florida Water
+#' Management District (SWFWMD), reprojects to EPSG:3087, and returns the result.
 #'
-#' Source: \url{https://swfwmd.maps.arcgis.com}
+#' When \code{local = TRUE} (default), the layer is read from a local shapefile:
+#' \itemize{
+#'   \item \code{T:/05_GIS/SWFWMD/LULC_2023/LANDUSELANDCOVER2023.shp}
+#' }
 #'
-#' @param county Character. County name — one of \code{"Citrus"},
-#'   \code{"Hernando"}, \code{"Hillsborough"}, \code{"Manatee"},
-#'   \code{"Pasco"}, \code{"Pinellas"}, or \code{"Sarasota"}.
+#' When \code{local = FALSE}, individual county shapefiles are downloaded from
+#' the SWFWMD ArcGIS portal (\url{https://swfwmd.maps.arcgis.com}). A
+#' \code{county} name must be supplied in this case.
+#'
+#' @param county Character. County name required when \code{local = FALSE} --
+#'   one of \code{"Citrus"}, \code{"Hernando"}, \code{"Hillsborough"},
+#'   \code{"Manatee"}, \code{"Pasco"}, \code{"Pinellas"}, or \code{"Sarasota"}.
+#'   Ignored when \code{local = TRUE}.
+#' @param local Logical. If \code{TRUE} (default), read from a local shapefile.
+#'   If \code{FALSE}, download from SWFWMD ArcGIS portal.
 #'
 #' @return An \code{sf} polygon object in EPSG:3087 with a \code{FLUCCSCODE} column.
 
-fetch_lulc <- function(county) {
-  lulc_items <- c(
-    Citrus = "ef11d576fcb44a44b8985a2bbc38a4f7",
-    Hernando = "86997a7802584735a8d8193f4a1af30f",
-    Hillsborough = "f95454790b724f7fb4a396c5de3c94d2",
-    Manatee = "5b0895fe575e4ab297e50546d99e407a",
-    Pasco = "81b1498949cd4ba8b9db52ca9e47653b",
-    Pinellas = "f0d97c30ada6487eb91196de088ee2fc",
-    Sarasota = "06b95375e3dc48e1b61a9b95a87aba30"
-  )
+fetch_lulc <- function(county = NULL, local = TRUE) {
+  if (local) {
+    path <- "T:/05_GIS/SWFWMD/LULC_2023/LANDUSELANDCOVER2023.shp"
+    message("Reading LULC from local file ...")
+    sf::st_read(path, quiet = TRUE) |>
+      sf::st_transform(3087L) |>
+      sf::st_make_valid()
+  } else {
+    if (is.null(county)) {
+      stop("county must be specified when local = FALSE")
+    }
 
-  if (!county %in% names(lulc_items)) {
-    stop("county must be one of: ", paste(names(lulc_items), collapse = ", "))
+    lulc_items <- c(
+      Citrus = "ef11d576fcb44a44b8985a2bbc38a4f7",
+      Hernando = "86997a7802584735a8d8193f4a1af30f",
+      Hillsborough = "f95454790b724f7fb4a396c5de3c94d2",
+      Manatee = "5b0895fe575e4ab297e50546d99e407a",
+      Pasco = "81b1498949cd4ba8b9db52ca9e47653b",
+      Pinellas = "f0d97c30ada6487eb91196de088ee2fc",
+      Sarasota = "06b95375e3dc48e1b61a9b95a87aba30"
+    )
+
+    if (!county %in% names(lulc_items)) {
+      stop("county must be one of: ", paste(names(lulc_items), collapse = ", "))
+    }
+
+    url <- paste0(
+      "https://swfwmd.maps.arcgis.com/sharing/rest/content/items/",
+      lulc_items[[county]],
+      "/data"
+    )
+
+    message("Downloading LULC for ", county, " ...")
+
+    zip_path <- tempfile(fileext = ".zip")
+    on.exit(unlink(zip_path), add = TRUE)
+    curl::curl_download(url, zip_path)
+
+    tmp_dir <- tempfile()
+    on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+    unzip(zip_path, exdir = tmp_dir)
+
+    shp <- list.files(
+      tmp_dir,
+      pattern = "\\.shp$",
+      full.names = TRUE,
+      recursive = TRUE
+    )[1]
+
+    sf::st_read(shp, quiet = TRUE) |>
+      sf::st_transform(3087L) |>
+      sf::st_make_valid()
   }
+}
 
-  url <- paste0(
-    "https://swfwmd.maps.arcgis.com/sharing/rest/content/items/",
-    lulc_items[[county]],
-    "/data"
-  )
+#' Clip combined LULC layer to a single county
+#'
+#' Subsets the combined LULC layer returned by \code{fetch_lulc()} to the
+#' boundary of one county.
+#'
+#' @param lulc_all An \code{sf} object as returned by \code{fetch_lulc()}.
+#' @param tbcmp_cnt An \code{sf} polygon with one row per county and a
+#'   \code{county} column.
+#' @param county Character. County name matching a value in \code{tbcmp_cnt$county}.
+#'
+#' @return An \code{sf} polygon object clipped to the county boundary in EPSG:3087.
 
-  message("Downloading LULC for ", county, " ...")
-
-  zip_path <- tempfile(fileext = ".zip")
-  on.exit(unlink(zip_path), add = TRUE)
-  curl::curl_download(url, zip_path)
-
-  tmp_dir <- tempfile()
-  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
-  unzip(zip_path, exdir = tmp_dir)
-
-  shp <- list.files(
-    tmp_dir,
-    pattern = "\\.shp$",
-    full.names = TRUE,
-    recursive = TRUE
-  )[1]
-
-  sf::st_read(shp, quiet = TRUE) |>
-    sf::st_transform(3087L) |>
+clip_lulc <- function(lulc_all, tbcmp_cnt, county) {
+  cnt_geom <- tbcmp_cnt[tbcmp_cnt$county == county, ]
+  sf::st_intersection(lulc_all, sf::st_union(cnt_geom)) |>
     sf::st_make_valid()
 }
 
